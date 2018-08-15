@@ -32,7 +32,7 @@ transformtypes = Dict(
     "Base.Dates.Time" => "Commas.Dates.Time",
 )
 
-Dfunction readcomma( dir::String )
+function readcomma( dir::String )
     (cols,types) = JSON.parsefile( joinpath( dir, ".metadata.json" ) )
     coldata = Vector[]
     for i = 1:length(cols)
@@ -96,14 +96,15 @@ end
 
 Base.show( io::IO, tuple::NTuple{N,UInt8} where {N} ) = print( io, String([tuple...]) )
 
-mutable struct DataCallbacks
-    df::NamedTuple{T,U} where {T,U <: NTuple{N,Vector} where {N}}
-    callbacks::Vector{Function}
+mutable struct DataCallbacks{T,U,V <: Function}
+    df::NamedTuple{T,U}
+    callbacks::Vector{V}
 end
 
 function runcallbacks( data::DataCallbacks )
-    row = DataRow( data.df, 1 )
-    while row.row <= length(data.df[1])
+    df = data.df
+    row = DataRow( df, 1 )
+    while row.row <= length(df[1])
         for callback in data.callbacks
             callback( row )
         end
