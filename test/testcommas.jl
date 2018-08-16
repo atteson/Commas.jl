@@ -29,3 +29,7 @@ sqrt(moments[3]/moments[1] - avg^2)
 filter = FilterCaller( caller, row -> Commas.getdate( row ) >= Date( 2004, 7, 2 ) )
 moments = zeros( Float64, 3 )
 runcallbacks( filter )
+
+@assert( abs( moments[1] - sum(df.date .>= Date(2004,7,2)) ) == 0.0 )
+avg = moments[2]/moments[1]
+sqrt(moments[3]/moments[1] - avg^2)
