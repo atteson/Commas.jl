@@ -5,7 +5,7 @@ using Dates
 using Mmap
 using Formatting
 
-export DataRow, DataCallbacks, runcallbacks
+export DataRow, DataCaller, runcallbacks, FilterCaller
 
 mutable struct DataRow{T,U}
     nt::NamedTuple{T,U}
@@ -96,12 +96,19 @@ end
 
 Base.show( io::IO, tuple::NTuple{N,UInt8} where {N} ) = print( io, String([tuple...]) )
 
-mutable struct DataCallbacks{T,U,V <: Function}
+abstract type AbstractCaller end
+
+getcallbacks( caller::AbstractCaller ) = caller.callbacks
+
+setcallbacks!( caller::AbstractCaller, callbacks::Vector{T} ) where {T <: Function} =
+    caller.callbacks = callbacks
+
+mutable struct DataCaller{T,U} <: AbstractCaller
     df::NamedTuple{T,U}
-    callbacks::Vector{V}
+    callbacks::Vector{Function}
 end
 
-function runcallbacks( data::DataCallbacks )
+function runcallbacks( data::DataCaller )
     df = data.df
     row = DataRow( df, 1 )
     while row.row <= length(df[1])
@@ -111,5 +118,26 @@ function runcallbacks( data::DataCallbacks )
         row.row += 1
     end
 end
+
+mutable struct FilterCaller <: AbstractCaller
+    data::AbstractCaller
+end
+
+function FilterCaller( data::AbstractCaller, filter::Function )
+    callbacks = getcallbacks( data )
+    
+    function filtercallback( row )
+        if filter( row )
+            for callback in callbacks
+                callback( row )
+            end
+        end
+    end
+    
+    setcallbacks!( data, [filtercallback] )
+    return FilterCaller( data )
+end
+
+runcallbacks( filter::FilterCaller ) = runcallbacks( filter.data )
 
 end # module
