@@ -6,11 +6,11 @@ dir = "/home/atteson/data/options/2004/07/02/SPX_20040717"
 df = Commas.readcomma( dir )
 
 row = Commas.DataRow( df, 17 )
-@assert( Commas.getbid( row ) .== df.bid[17] )
+@assert( row[:bid] .== df.bid[17] )
 
 function update( row, moments )
     for i in 1:length(moments)
-        moments[i] += Commas.getprice( row )^(i-1)
+        moments[i] += row[:price]^(i-1)
     end
 end
 

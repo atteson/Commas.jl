@@ -7,23 +7,12 @@ using Formatting
 
 export DataRow, DataCaller, runcallbacks, FilterCaller
 
-mutable struct DataRow{T,U}
-    nt::NamedTuple{T,U}
+mutable struct DataRow{NT <: NamedTuple}
+    nt::NT
     row::Int
 end
 
-eltypes( nt::NamedTuple{U,T} ) where {U,T} = T
-
-function makegetters( nt )
-    names = keys(nt)
-    getternames = Symbol.("get" .* string.(names))
-    types = eltypes( nt )
-    for i = 1:length(names)
-         eval( quote
-             $(getternames[i])( row::DataRow{$names,$types} ) = row.nt.$(names[i])[row.row]
-         end )
-    end
-end
+Base.getindex( row::DataRow, field::Symbol ) = getfield( row.nt, field )[row.row]
 
 # required transformations to move from 0.6 to 1.0
 transformtypes = Dict(
@@ -47,7 +36,6 @@ function readcomma( dir::String )
         push!( coldata, col )
     end
     df = NamedTuple{(Symbol.(cols)...,)}( coldata )
-    makegetters( df )
     return df
 end
 
@@ -103,12 +91,12 @@ getcallbacks( caller::AbstractCaller ) = caller.callbacks
 setcallbacks!( caller::AbstractCaller, callbacks::Vector{T} ) where {T <: Function} =
     caller.callbacks = callbacks
 
-mutable struct DataCaller{T,U} <: AbstractCaller
-    df::NamedTuple{T,U}
-    callbacks::Vector{Function}
+mutable struct DataCaller{NT <: NamedTuple, F <: Function} <: AbstractCaller
+    df::NT
+    callbacks::Vector{F}
 end
 
-function runcallbacks( data::DataCaller )
+function runcallbacks( data::DataCaller{NT} ) where {NT <: NamedTuple}
     df = data.df
     row = DataRow( df, 1 )
     while row.row <= length(df[1])
