@@ -110,3 +110,53 @@ callbacks = [sumsquared6]
 @time f5( callbacks, df )
 # 0.086s
 
+function f7( nt )
+    sumsq = [0f0]
+    row = Row( nt, 1 )
+    for i = 1:length(nt.price)
+        row.row = i
+        sumsquared5( sumsq, row )
+    end
+    return sumsq[1]
+end
+
+@time f7( df )
+@time f7( df )
+
+nt2 = ( price=nt.x, )
+@time f7( nt2 )
+@time f7( nt2 )
+
+sumsquared8( sumsq::Vector{Float32}, row::DataRow ) = sumsq[1] += Commas.getprice( row )^2
+
+function f8( nt )
+    sumsq = [0f0]
+    row = DataRow( nt, 1 )
+    for i = 1:length(nt.price)
+        row.row = i
+        sumsquared8( sumsq, row )
+    end
+    return sumsq[1]
+end
+
+@time f8( df )
+@time f8( df )
+# 0.084s
+
+callbacks = [sumsquared8]
+
+function f9( callbacks, nt )
+    sumsq = [0f0]
+    row = DataRow( nt, 1 )
+    for i = 1:length(nt.price)
+        row.row = i
+        for callback in callbacks
+            callback( sumsq, row )
+        end
+    end
+    return sumsq[1]
+end
+
+@time f9( callbacks, df )
+@time f9( callbacks, df )
+# 0.10s
