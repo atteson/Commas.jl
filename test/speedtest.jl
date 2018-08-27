@@ -122,10 +122,12 @@ end
 
 @time f7( df )
 @time f7( df )
+# 3.02s
 
 nt2 = ( price=nt.x, )
 @time f7( nt2 )
 @time f7( nt2 )
+0.083s
 
 sumsquared8( sumsq::Vector{Float32}, row::DataRow ) = sumsq[1] += Commas.getprice( row )^2
 
