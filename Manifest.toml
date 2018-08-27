@@ -1,6 +1,12 @@
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
+[[BusinessDays]]
+deps = ["Dates", "Pkg", "Test"]
+git-tree-sha1 = "5aa63ecf49a6dad0799939606b7bb63a047452b0"
+uuid = "4f18b42c-503e-5345-9536-bb0f25fc7038"
+version = "0.9.0"
+
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
 git-tree-sha1 = "277d3807440d9793421354b6680911fc95d91a84"
