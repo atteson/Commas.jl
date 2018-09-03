@@ -6,4 +6,5 @@ struct BusinessDay <: DatePeriod
     value::Int
 end
 
-(Base.+)( d::Date, bd::BusinessDay ) = 
+Base.:+( d::Date, bd::BusinessDay ) = advancebdays( BusinessDay.calendar, d, bd.value )
+
