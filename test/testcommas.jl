@@ -37,3 +37,6 @@ moments = zeros( Float64, 3 )
 # 1.82s
 
 @assert( abs( moments[1] - sum(df.date .>= Date(2004,7,2)) ) == 0.0 )
+
+daterange = Date( 2005, 1, 1 ):BusinessDay( 1 ):Date( 2005, 1, 1 )
+HcatCaller( "/home/atteson/data/options/

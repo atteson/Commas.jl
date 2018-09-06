@@ -3,7 +3,7 @@ using Dates
 using Mmap
 using Formatting
 
-export DataRow, DataCaller, runcallbacks, FilterCaller
+export DataRow
 
 mutable struct DataRow{NT <: NamedTuple}
     nt::NT
@@ -93,21 +93,3 @@ function Base.show(
 end
 
 Base.show( io::IO, tuple::NTuple{N,UInt8} where {N} ) = print( io, String([tuple...]) )
-
-struct HcatCommas
-    prefix::String
-    iterator
-    suffix::String
-end
-
-mutable struct HcatCommasState
-    hcatstate
-    commastate
-end
-
-function iterate( hcc::HcatCommas )
-    next = iterate( hcc.iterator )
-    next == nothing && return nothing
-    comma = readcommas( hcc.prefix * string(next[1]) * hcc.suffix )
-    
-end
