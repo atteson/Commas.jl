@@ -69,9 +69,9 @@ align( c::NTuple{N,UInt8} where {N} ) = rpad
 function Base.show(
     io::IO,
     df::NamedTuple{T,U};
-    toprows::Int = div(displaysize(stdout)[1], 2) - 3,
+    toprows::Int = div(displaysize(io)[1], 2) - 3,
     bottomrows::Int = toprows,
-    termwidth::Int = displaysize(stdout)[2],
+    termwidth::Int = displaysize(io)[2],
 ) where {T,U <: NTuple{N,Vector} where {N}}
     columns = Vector{String}[]
     totallength = 0
@@ -80,16 +80,34 @@ function Base.show(
 
         top = format.(col[1:toprows])
         bottom = format.(col[end-bottomrows+1:end])
-        colstrings = [string(k); top; "⋯"; bottom]
+        colstrings = [string(k); top; "..."; bottom]
         
-        collength = maximum(length.(colstrings))
+        collength = maximum(length.(colstrings)) + 1
         totallength += collength
         totallength > termwidth && break
         
         colstrings = align( col[1] ).( colstrings, collength )
-        push!( columns, colstrings .* ' ' )
+        push!( columns, colstrings )
     end
-    println( join( .*( columns... ), '\n' ) )
+    print( io, join( .*( columns... ), '\n' ) )
 end
 
 Base.show( io::IO, tuple::NTuple{N,UInt8} where {N} ) = print( io, String([tuple...]) )
+
+struct HcatCommas
+    prefix::String
+    iterator
+    suffix::String
+end
+
+mutable struct HcatCommasState
+    hcatstate
+    commastate
+end
+
+function iterate( hcc::HcatCommas )
+    next = iterate( hcc.iterator )
+    next == nothing && return nothing
+    comma = readcommas( hcc.prefix * string(next[1]) * hcc.suffix )
+    
+end
