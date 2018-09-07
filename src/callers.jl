@@ -45,16 +45,13 @@ end
 runcallbacks( filter::FilterCaller ) = runcallbacks( filter.data )
 
 struct HcatCaller{F <: Function} <: AbstractCaller
-    prefix::String
     iterator
-    suffix::String
     callbacks::Vector{F}
 end
 
 function runcallbacks( hc::HcatCaller )
     callbacks = getcallbacks( hc )
-    for item in hc.iterator
-        name = hc.prefix * string(item) * hc.suffix
+    for name in hc.iterator
         df = readcommas( name )
         runcallbacks( DataCaller( df, callbacks ) )
     end
