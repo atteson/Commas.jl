@@ -52,7 +52,7 @@ end
 function runcallbacks( hc::HcatCaller )
     callbacks = getcallbacks( hc )
     for name in hc.iterator
-        df = readcommas( name )
+        df = readcomma( name )
         runcallbacks( DataCaller( df, callbacks ) )
     end
 end
