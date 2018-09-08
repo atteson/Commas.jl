@@ -1,4 +1,4 @@
-export DataCaller, runcallbacks, FilterCaller
+export DataCaller, runcallbacks, FilterCaller, HcatDataCaller, MergeDataCaller
 
 abstract type AbstractCaller end
 
@@ -7,19 +7,24 @@ getcallbacks( caller::AbstractCaller ) = caller.callbacks
 setcallbacks!( caller::AbstractCaller, callbacks::Vector{T} ) where {T <: Function} =
     caller.callbacks = callbacks
 
-mutable struct DataCaller{NT <: NamedTuple, F <: Function} <: AbstractCaller
+mutable struct DataCaller{NT <: NamedTuple} <: AbstractCaller
     df::NT
-    callbacks::Vector{F}
+    callbacks::Vector{Function}
 end
+
+DataCaller( df::NT, callbacks::Vector{F} ) where {NT <: NamedTuple, F <: Function} =
+    DataCaller( df, Vector{Function}(callbacks) )
 
 function runcallbacks( data::DataCaller{NT} ) where {NT <: NamedTuple}
     df = data.df
-    row = DataRow( df, 1 )
-    while row.row <= length(df[1])
+    row = DataRow( df, 0 )
+    # must pre-decrement because we use Channel for merge
+    while row.row < length(df[1])
+        row.row += 1
+        println( "Calling callbacks with row $(row.row)" )
         for callback in data.callbacks
             callback( row )
         end
-        row.row += 1
     end
 end
 
@@ -38,21 +43,50 @@ function FilterCaller( data::AbstractCaller, filter::Function )
         end
     end
     
-    setcallbacks!( data, [filtercallback] )
+    setcallbacks!( data, Function[filtercallback] )
     return FilterCaller( data )
 end
 
 runcallbacks( filter::FilterCaller ) = runcallbacks( filter.data )
 
-struct HcatCaller{F <: Function} <: AbstractCaller
+mutable struct HcatDataCaller <: AbstractCaller
     iterator
-    callbacks::Vector{F}
+    callbacks::Vector{Function}
 end
 
-function runcallbacks( hc::HcatCaller )
+HcatDataCaller( iterator, callbacks::Vector{F} ) where {NT <: NamedTuple, F <: Function} =
+    HcatDataCaller( iterator, Vector{Function}(callbacks) )
+
+function runcallbacks( hc::HcatDataCaller )
     callbacks = getcallbacks( hc )
     for name in hc.iterator
         df = readcomma( name )
         runcallbacks( DataCaller( df, callbacks ) )
     end
+end
+
+mutable struct MergeDataCaller{C <: AbstractCaller} <: AbstractCaller
+    callers::Vector{C}
+    getter::Function
+end
+
+function gencoroutine( caller::AbstractCaller )
+    function coroutine( c::Channel )
+        mergecallback( row::DataRow ) = put!( c, row )
+            
+        callbacks = getcallbacks( caller )
+        setcallbacks!( caller, Function[mergecallback] )
+
+        runcallbacks( caller )
+
+        setcallbacks!( caller, callbacks )
+    end
+end
+
+function runcallbacks( mc::MergeDataCaller )
+    callbacks = getcallbacks.( mc.callers )
+
+    channels = Channel.( gencoroutine.( mc.callers ) )
+    
+    return take!.( channels )
 end
