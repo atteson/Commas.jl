@@ -1,4 +1,4 @@
-export DataCaller, runcallbacks, FilterCaller, HcatDataCaller, MergeDataCaller
+export DataCaller, runcallbacks, FilterCaller, HcatCaller, MergeCaller
 
 abstract type AbstractCaller end
 
@@ -21,7 +21,6 @@ function runcallbacks( data::DataCaller{NT} ) where {NT <: NamedTuple}
     # must pre-decrement because we use Channel for merge
     while row.row < length(df[1])
         row.row += 1
-        println( "Calling callbacks with row $(row.row)" )
         for callback in data.callbacks
             callback( row )
         end
@@ -49,15 +48,15 @@ end
 
 runcallbacks( filter::FilterCaller ) = runcallbacks( filter.data )
 
-mutable struct HcatDataCaller <: AbstractCaller
+mutable struct HcatCaller <: AbstractCaller
     iterator
     callbacks::Vector{Function}
 end
 
-HcatDataCaller( iterator, callbacks::Vector{F} ) where {NT <: NamedTuple, F <: Function} =
-    HcatDataCaller( iterator, Vector{Function}(callbacks) )
+HcatCaller( iterator, callbacks::Vector{F} ) where {NT <: NamedTuple, F <: Function} =
+    HcatCaller( iterator, Vector{Function}(callbacks) )
 
-function runcallbacks( hc::HcatDataCaller )
+function runcallbacks( hc::HcatCaller )
     callbacks = getcallbacks( hc )
     for name in hc.iterator
         df = readcomma( name )
@@ -65,28 +64,48 @@ function runcallbacks( hc::HcatDataCaller )
     end
 end
 
-mutable struct MergeDataCaller{C <: AbstractCaller} <: AbstractCaller
+mutable struct MergeCaller{C <: AbstractCaller} <: AbstractCaller
     callers::Vector{C}
     getter::Function
 end
 
-function gencoroutine( caller::AbstractCaller )
-    function coroutine( c::Channel )
-        mergecallback( row::DataRow ) = put!( c, row )
-            
+function runcallbacks( mc::MergeCaller )
+    n = length(mc.callers)
+    data = Vector{AbstractDataRow}( undef, n )
+    running = trues( n )
+
+    maintask = current_task()
+    
+    function callertask( index::Int )
+        caller = mc.callers[index]
+        
         callbacks = getcallbacks( caller )
-        setcallbacks!( caller, Function[mergecallback] )
+        
+        function callback( row )
+            data[index] = row
+            yieldto( maintask )
+        end
+        
+        setcallbacks!( caller, [callback] )
 
         runcallbacks( caller )
 
         setcallbacks!( caller, callbacks )
+
+        running[index] = false
+        yieldto( maintask )
     end
-end
 
-function runcallbacks( mc::MergeDataCaller )
-    callbacks = getcallbacks.( mc.callers )
-
-    channels = Channel.( gencoroutine.( mc.callers ) )
-    
-    return take!.( channels )
+    callbackses = getcallbacks.( mc.callers )
+        
+    tasks = Task.( [() -> callertask( i ) for i in 1:n] )
+    yieldto.( tasks )
+    while any(running)
+        runningindex = argmin( mc.getter.( data[running] ) )
+        index = findall(running)[runningindex]
+        for callback in callbackses[index]
+            callback( data[index] )
+        end
+        yieldto( tasks[index] )
+    end
 end

@@ -5,7 +5,9 @@ using Formatting
 
 export DataRow
 
-mutable struct DataRow{NT <: NamedTuple}
+abstract type AbstractDataRow end
+
+mutable struct DataRow{NT <: NamedTuple} <: AbstractDataRow
     nt::NT
     row::Int
 end
@@ -54,6 +56,7 @@ formats = Dict(
     Dates.Time => DateFormat( "HH:MM:SS.sss" ),
     Int64 => "%d",
     Float32 => "%0.2f",
+    Float64 => "%0.2f",
     UInt32 => "%d",
     Dates.DateTime => DateFormat( "mm/dd/yyyy HH:MM:SS.sss" ),
 )
@@ -73,6 +76,9 @@ function Base.show(
     bottomrows::Int = toprows,
     termwidth::Int = displaysize(io)[2],
 ) where {T,U <: NTuple{N,Vector} where {N}}
+    toprows = min(toprows, length(df[1]))
+    bottomrows = min(bottomrows, length(df[1]) - toprows)
+    
     columns = Vector{String}[]
     totallength = 0
     for k in keys(df)
@@ -80,7 +86,11 @@ function Base.show(
 
         top = format.(col[1:toprows])
         bottom = format.(col[end-bottomrows+1:end])
-        colstrings = [string(k); top; "..."; bottom]
+        colstrings = [string(k); top]
+        if bottomrows > 0
+            colstrings = [colstrings; "..."; bottom]
+        end
+            
         
         collength = maximum(length.(colstrings)) + 1
         totallength += collength
