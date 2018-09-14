@@ -4,16 +4,14 @@ abstract type AbstractCaller end
 
 getcallbacks( caller::AbstractCaller ) = caller.callbacks
 
-setcallbacks!( caller::AbstractCaller, callbacks::Vector{T} ) where {T <: Function} =
+function setcallbacks!( caller::AbstractCaller, callbacks::Vector{T} ) where {T <: Function}
     caller.callbacks = callbacks
-
-mutable struct DataCaller{NT <: NamedTuple} <: AbstractCaller
-    df::NT
-    callbacks::Vector{Function}
 end
 
-DataCaller( df::NT, callbacks::Vector{F} ) where {NT <: NamedTuple, F <: Function} =
-    DataCaller( df, Vector{Function}(callbacks) )
+mutable struct DataCaller{NT <: NamedTuple, F <: Function} <: AbstractCaller
+    df::NT
+    callbacks::Vector{F}
+end
 
 function runcallbacks( data::DataCaller{NT} ) where {NT <: NamedTuple}
     df = data.df
@@ -64,29 +62,29 @@ function runcallbacks( hc::HcatCaller )
     end
 end
 
-mutable struct MergeCaller{C <: AbstractCaller} <: AbstractCaller
+mutable struct MergeCaller{C <: AbstractCaller, F <: Function} <: AbstractCaller
     callers::Vector{C}
-    getter::Function
+    getter::F
 end
 
-function runcallbacks( mc::MergeCaller )
+function runcallbacks( mc::MergeCaller{C,F} ) where {C,F}
     n = length(mc.callers)
     data = Vector{AbstractDataRow}( undef, n )
     running = trues( n )
 
     maintask = current_task()
     
-    function callertask( index::Int )
+    function callertask( index::Int, data, running, maintask )
         caller = mc.callers[index]
         
         callbacks = getcallbacks( caller )
         
-        function callback( row )
+        function callback( row, data, maintask )
             data[index] = row
             yieldto( maintask )
         end
-        
-        setcallbacks!( caller, [callback] )
+
+        setcallbacks!( caller, [row -> callback( row, data, maintask )] )
 
         runcallbacks( caller )
 
@@ -98,14 +96,35 @@ function runcallbacks( mc::MergeCaller )
 
     callbackses = getcallbacks.( mc.callers )
         
-    tasks = Task.( [() -> callertask( i ) for i in 1:n] )
+    tasks = [Task(() -> callertask( i, data, running, maintask )) for i in 1:n]
     yieldto.( tasks )
-    while any(running)
-        runningindex = argmin( mc.getter.( data[running] ) )
-        index = findall(running)[runningindex]
-        for callback in callbackses[index]
-            callback( data[index] )
+    numrunning = sum(running)
+    
+    gotten = mc.getter.( data[running] )
+    while numrunning > 0
+        i = 1
+        while !running[i]
+            i += 1
         end
-        yieldto( tasks[index] )
+        minvalue = gotten[i]
+        minindex = i
+
+        while i < length(running)
+            i += 1
+            if running[i] && gotten[i] < minvalue
+                minvalue = gotten[i]
+                minindex = i
+            end
+        end
+                
+        for callback in callbackses[minindex]
+            callback( data[minindex] )
+        end
+        yieldto( tasks[minindex] )
+        if running[minindex]
+            gotten[minindex] = mc.getter( data[minindex] )
+        else
+            numrunning -= 1
+        end
     end
 end
