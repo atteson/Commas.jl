@@ -1,7 +1,6 @@
 using Commas
 
 nt1 = (t = cumsum(rand(10^6)),);
-
 Commas.makegetters( nt1 )
 
 sorted = fill( NaN, 2*10^6 );
@@ -22,6 +21,9 @@ sortedindex = [0]
 @time runcallbacks( mc )
 
 exit()
+
+nt2 = (t = cumsum(rand(10^6)),);
+dc2 = DataCaller( nt1, [row -> update( row, sorted, sortedindex )] );
 
 mc = MergeCaller( [dc1,dc2], Commas.gett );
 sortedindex = [0]

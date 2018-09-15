@@ -74,17 +74,17 @@ function runcallbacks( mc::MergeCaller{C,F} ) where {C,F}
 
     maintask = current_task()
     
-    function callertask( index::Int, data, running, maintask )
+    function callertask( index::Int )
         caller = mc.callers[index]
         
         callbacks = getcallbacks( caller )
         
-        function callback( row, data, maintask )
+        function callback( row )
             data[index] = row
             yieldto( maintask )
         end
 
-        setcallbacks!( caller, [row -> callback( row, data, maintask )] )
+        setcallbacks!( caller, [callback] )
 
         runcallbacks( caller )
 
@@ -96,7 +96,7 @@ function runcallbacks( mc::MergeCaller{C,F} ) where {C,F}
 
     callbackses = getcallbacks.( mc.callers )
         
-    tasks = [Task(() -> callertask( i, data, running, maintask )) for i in 1:n]
+    tasks = [Task(() -> callertask( i )) for i in 1:n]
     yieldto.( tasks )
     numrunning = sum(running)
     
