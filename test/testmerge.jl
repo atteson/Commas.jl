@@ -22,12 +22,12 @@ abstract type AbstractCaller end
 
 getcallbacks( caller::AbstractCaller ) = caller.callbacks
 
-changecallbacks( caller::DataCaller, callbacks::Vector{F} ) where {F <: Function} = DataCaller( caller.df, callbacks )
-
 mutable struct DataCaller{NT <: NamedTuple, F <: Function} <: AbstractCaller
     df::NT
     callbacks::Vector{F}
 end
+
+changecallbacks( caller::DataCaller, callbacks::Vector{F} ) where {F <: Function} = DataCaller( caller.df, callbacks )
 
 function runcallbacks( data::DataCaller{NT} ) where {NT <: NamedTuple}
     df = data.df
@@ -60,25 +60,28 @@ mutable struct MergeCaller{C <: AbstractCaller, F <: Function} <: AbstractCaller
     getter::F
 end
 
-
 function runcallbacks( mc::MergeCaller{C,F} ) where {C,F}
     n = length(mc.callers)
-    data = Vector{AbstractDataRow}( undef, n )
+    # this needs to change
+    data = Vector{DataRow{NamedTuple{(:t,),Tuple{Vector{Float64}}}}}( undef, n )
     running = trues( n )
 
     maintask = current_task()
     
-    function callertask( index::Int )
+#    function callertask( index::Int, mc::MergeCaller{C,F}, data::Vector{DataRow{NamedTuple{(:t,),Tuple{Vector{Float64}}}}}, maintask::Task, running::BitArray ) where {C,F}
+    function callertask( index::Int, mc::MergeCaller{C,F}, maintask::Task, running::BitArray ) where {C,F}
         caller = mc.callers[index]
         
         callbacks = getcallbacks( caller )
         
-        function callback( row )
-            data[index] = row
+#        function callback( row::DataRow{NamedTuple{(:t,),Tuple{Vector{Float64}}}}, index::Int, data::Vector{DataRow{NamedTuple{(:t,),Tuple{Vector{Float64}}}}}, maintask::Task )
+        function callback( row::DataRow{NamedTuple{(:t,),Tuple{Vector{Float64}}}}, maintask::Task )
+#            data[index] = row
             yieldto( maintask )
         end
 
-        newcaller = changecallbacks( caller, [callback] )
+#        newcaller = changecallbacks( caller, [row -> callback( row, index, data, maintask )] )
+        newcaller = changecallbacks( caller, [row -> callback( row, maintask )] )
 
         runcallbacks( newcaller )
 
@@ -88,33 +91,37 @@ function runcallbacks( mc::MergeCaller{C,F} ) where {C,F}
 
     callbackses = getcallbacks.( mc.callers )
         
-    tasks = [Task(() -> callertask( i )) for i in 1:n]
+#    tasks = [Task(() -> callertask( i, mc, data, maintask, running )) for i in 1:n]
+    tasks = [Task(() -> callertask( i, mc, maintask, running )) for i in 1:n]
     yieldto.( tasks )
     numrunning = sum(running)
     
-    gotten = mc.getter.( data[running] )
+#    gotten = mc.getter.( data[running] )
+    sorted = fill( NaN, 10^6 )
+    sortedindex = [0]
     while numrunning > 0
         i = 1
-        while !running[i]
-            i += 1
-        end
-        minvalue = gotten[i]
+#        while !running[i]
+#            i += 1
+#        end
+#        minvalue = gotten[i]
         minindex = i
 
-        while i < length(running)
-            i += 1
-            if running[i] && gotten[i] < minvalue
-                minvalue = gotten[i]
-                minindex = i
-            end
-        end
+#        while i < length(running)
+#            i += 1
+#            if running[i] && gotten[i] < minvalue
+#                minvalue = gotten[i]
+#                minindex = i
+#            end
+#        end
                 
-        for callback in callbackses[minindex]
-            callback( data[minindex] )
-        end
+#        for callback in callbackses[minindex]
+#            callback( data[minindex] )
+        #        end
+#        update( data[minindex], sorted, sortedindex )
         yieldto( tasks[minindex] )
         if running[minindex]
-            gotten[minindex] = mc.getter( data[minindex] )
+#            gotten[minindex] = gett( data[minindex] )
         else
             numrunning -= 1
         end
