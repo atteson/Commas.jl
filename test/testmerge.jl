@@ -135,5 +135,139 @@ sortedindex = [0]
 sortedindex = [0]
 @time runcallbacks( mc )
 
+function f()
+    data = [0]
+    maintask = current_task()
+    function taskf( maintask::Task, data::Vector{Int} )
+        for i = 1:10^6
+            yieldto( maintask, data )
+        end
+    end
+    subtask = Task(()->taskf( maintask, data ))
+    for i = 1:10^6
+        yieldto( subtask, data )
+    end
+end
+@time f()
+@time f()
 
+function f()
+    maintask = current_task()
+    function taskf(maintask::Task)
+        for i = 1:10^6
+            yield( maintask )
+        end
+    end
+    subtask = Task(() -> taskf(maintask))
+    for i = 1:10^6
+        yield( subtask )
+    end
+end
+@time f()
+@time f()
+
+function g()
+    c = Channel(1)
+    x = cumsum( rand(10^6) )
+    function taskf()
+        for i = 1:10^6
+            put!( c, x[i] )
+        end
+    end
+    task = Task(taskf)
+    schedule(task)
+    for i = 1:10^6
+        y = take!(c)
+    end
+end
+@time g()        
+@time g()        
+
+function h()
+    x = cumsum( rand(10^6) )
+    function taskf(c::Channel)
+        for i = 1:10^6
+            put!( c, x[i] )
+        end
+    end
+    c = Channel(taskf)
+    for i = 1:10^6
+        y = take!(c)
+    end
+end
+@time h()
+@time h()
+
+function f2()
+    fastyield( task::Task ) = 
+        ccall( :jl_switchto, Cvoid, (Any,), Ref(task) )
+    
+    function taskf(maintask::Task)
+        for i = 1:10^6
+            fastyield( maintask )
+        end
+    end
+    
+    maintask = current_task()
+    task = Task(()->taskf(maintask))
+    for i = 1:10^6
+        fastyield( task )
+    end
+end
+@time f2()
+@time f2()
+
+caller = DataCaller( nt1, Function[] )
+
+Base.iterate( caller::DataCaller{U,T}, state::Int = 1 ) where {U,T} =
+    if state > length(caller.df.t)
+        return nothing
+    else
+        return (caller.df.t[state], state+1)
+    end
+
+function f()
+    sum = 0
+    result = Iterators.iterate( nt1.t )
+    while result != nothing
+        sum += 1
+        result = Iterators.iterate( nt1.t, result[2] )
+    end
+end
+@time f()
+@time f()
+
+function g()
+    sum = 0
+    for t in nt1.t
+        sum += 1
+    end
+    return sum
+end
+@time g()
+@time g()
+
+x = rand(10^6)
+function f1( x::Vector{Float64} )
+    sum = 0.0
+    i = 1
+    n = 10^6
+    while i < n
+        sum += x[i]
+        i += 1
+    end
+    return sum
+end
+@time f1(x)
+@time f1(x)
+
+function f2( x::Vector{Float64} )
+    sum = 0.0
+    for xi in x
+        sum += xi
+    end
+    return sum
+end
+@time f2(x)
+@time f2(x)
 

@@ -8,59 +8,91 @@ function setcallbacks!( caller::AbstractCaller, callbacks::Vector{T} ) where {T 
     caller.callbacks = callbacks
 end
 
-mutable struct DataCaller{NT <: NamedTuple, F <: Function} <: AbstractCaller
-    df::NT
-    callbacks::Vector{F}
-end
 
-function runcallbacks( data::DataCaller{NT} ) where {NT <: NamedTuple}
-    df = data.df
-    row = DataRow( df, 0 )
-    # must pre-decrement because we use Channel for merge
-    while row.row < length(df[1])
-        row.row += 1
+
+abstract type NamedTupleDataCaller{NT <: NamedTuple} <: AbstractCaller end
+
+function runcallbacks( data::AbstractCaller )
+#function runcallbacks( data::NamedTupleDataCaller{NT} ) where {NT <: NamedTuple}
+    (row, state) = start( data )
+    while next!( data, row, state )
         for callback in data.callbacks
             callback( row )
         end
     end
 end
 
-mutable struct FilterCaller <: AbstractCaller
-    data::AbstractCaller
+
+
+mutable struct DataCaller{NT <: NamedTuple, F <: Function} <: NamedTupleDataCaller{NT}
+    df::NT
+    callbacks::Vector{F}
 end
 
-function FilterCaller( data::AbstractCaller, filter::Function )
-    callbacks = getcallbacks( data )
-    
-    function filtercallback( row )
-        if filter( row )
-            for callback in callbacks
-                callback( row )
-            end
-        end
+# standard iterator doesn't quite fit our use case
+start( data::DataCaller{NT, F} ) where {NT, F} = (DataRow( data.df, 0 ), nothing)
+
+function next!( caller::DataCaller{NT,F}, row::DataRow{NT}, state ) where {NT, F}
+    row.row += 1
+    return row.row <= length(row.nt[1])
+end
+
+
+
+mutable struct FilterCaller{NT <: NamedTuple, F <: Function} <: NamedTupleDataCaller{NT}
+    caller::NamedTupleDataCaller{NT}
+    filter::Function
+    callbacks::Vector{F}
+end
+
+FilterCaller( caller::NamedTupleDataCaller{NT}, filter::Function, callbacks::Vector{F} = caller.callbacks ) where {NT, F} =
+    FilterCaller( caller, filter, callbacks )
+
+start( caller::FilterCaller{NT, F} ) where {NT, F} = start( caller.caller )
+
+function next!( caller::FilterCaller{NT, F}, row::DataRow{NT}, state ) where {NT, F}
+    done = false
+    while !done && next!( caller.caller, row, state )
+        done = caller.filter( row )
     end
-    
-    setcallbacks!( data, Function[filtercallback] )
-    return FilterCaller( data )
+    return done
 end
 
-runcallbacks( filter::FilterCaller ) = runcallbacks( filter.data )
+
 
 mutable struct HcatCaller <: AbstractCaller
     iterator
     callbacks::Vector{Function}
 end
 
-HcatCaller( iterator, callbacks::Vector{F} ) where {NT <: NamedTuple, F <: Function} =
-    HcatCaller( iterator, Vector{Function}(callbacks) )
-
-function runcallbacks( hc::HcatCaller )
-    callbacks = getcallbacks( hc )
-    for name in hc.iterator
-        df = readcomma( name )
-        runcallbacks( DataCaller( df, callbacks ) )
+function start( data::HcatCaller )
+    result = iterate( data.iterator )
+    if result != nothing
+        (dir, state) = result
+        df = readcomma( dir )
+        row = DataRow( df, 0 )
+        return (row, [state])
     end
+    return (nothing, nothing)
 end
+
+function next!( data::HcatCaller, row::DataRow, state )
+    state == nothing && return false
+
+    row.row += 1
+    if row.row > length(row.nt[1])
+        result = iterate( data.iterator, state[1] )
+        result == nothing && return false
+        
+        (dir, newstate) = result
+        row.nt = readcomma( dir )
+        row.row = 1
+        state[1] = newstate
+    end
+    return true
+end
+
+
 
 mutable struct MergeCaller{C <: AbstractCaller, F <: Function} <: AbstractCaller
     callers::Vector{C}

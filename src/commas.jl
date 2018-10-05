@@ -102,4 +102,4 @@ function Base.show(
     print( io, join( .*( columns... ), '\n' ) )
 end
 
-Base.show( io::IO, tuple::NTuple{N,UInt8} where {N} ) = print( io, String([tuple...]) )
+Base.show( io::IO, tuple::NTuple{N,UInt8} where {N} ) = print( io, String(UInt8[tuple...]) )
