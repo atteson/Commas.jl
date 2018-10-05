@@ -54,15 +54,29 @@ while currdate <= enddate
     end
 end
 
-sum = [0]
-count( row, sum ) = sum[1] += 1
-caller = HcatCaller( dirs, Function[row -> count(row, sum)] );
-runcallbacks( caller )
-
-
-
-sum2 = 0
-for dir in dirs
-    df = Commas.readcomma(dir)
-    sum2 += length(df[1])
+m = 3
+function count( row, sums )
+    for i = 1:m
+        sums[i] += Commas.getbid( row )^(i-1)
+    end
 end
+sums = zeros(m)
+caller = HcatCaller( dirs, Function[row -> count(row, sums)] );
+sums[1:m] = zeros(m)
+@time runcallbacks( caller )
+sums[1:m] = zeros(m)
+@time runcallbacks( caller )
+
+function f()
+    sums = zeros(m)
+    for dir in dirs
+        df = Commas.readcomma(dir)
+        for i = 1:m
+            sums[i] += mapreduce( x->x^(i-1), +, df.bid )
+        end
+    end
+    return sums
+end
+
+sums2 = f()
+
