@@ -76,7 +76,7 @@ function start( data::HcatCaller )
     return (nothing, nothing)
 end
 
-function next!( data::HcatCaller, row::DataRow, state )
+function next!( data::HcatCaller, row::DataRow{NT}, state ) where {NT <: NamedTuple}
     state == nothing && return false
 
     row.row += 1
