@@ -2,8 +2,9 @@ using JSON
 using Dates
 using Mmap
 using Formatting
+using JSON
 
-export DataRow
+export DataRow, CharN
 
 abstract type AbstractDataRow end
 
@@ -12,12 +13,11 @@ mutable struct DataRow{NT <: NamedTuple} <: AbstractDataRow
     row::Int
 end
 
-eltypes( nt::NamedTuple{U,T} ) where {U,T} = T
+eltypes( nt::NamedTuple{U,T} ) where {U,T} = eltype.([nt...])
 
 function makegetters( nt )
     names = keys(nt)
     getternames = Symbol.("get" .* string.(names))
-    types = eltypes( nt )
     for i = 1:length(names)
          eval( quote
              $(getternames[i])( row::DataRow{$(typeof(nt))} ) = row.nt.$(names[i])[row.row]
@@ -32,8 +32,16 @@ transformtypes = Dict(
     "Base.Dates.Time" => "Commas.Dates.Time",
 )
 
+const metadataname = ".metadata.json"
+
+writemetadata( dir::String, nt::NamedTuple{T,U} ) where {T,U} =
+    write( joinpath( dir, metadataname ), JSON.json([T,string.(eltypes(nt))]) )
+
+readmetadata( dir::String ) =
+    JSON.parsefile( joinpath( dir, metadataname ) )
+
 function readcomma( dir::String )
-    (cols,types) = JSON.parsefile( joinpath( dir, ".metadata.json" ) )
+    (cols,types) = readmetadata( dir )
     coldata = Vector[]
     for i = 1:length(cols)
         transformedtype = get( transformtypes, types[i], types[i] )
@@ -102,4 +110,12 @@ function Base.show(
     print( io, join( .*( columns... ), '\n' ) )
 end
 
-Base.show( io::IO, tuple::NTuple{N,UInt8} where {N} ) = print( io, String(UInt8[tuple...]) )
+const CharN{N} = NTuple{N,UInt8}
+
+Base.convert( ::Type{CharN{N}}, x::AbstractString ) where {N} = convert( CharN{N}, (rpad(x,N)...,) )
+
+Base.convert( ::Type{String}, x::CharN{N} ) where {N} = strip(String([x...]))
+
+# This data structure doesn't support strings so this is the alternative for now
+Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String([tuple...]) )
+
