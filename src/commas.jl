@@ -34,8 +34,18 @@ transformtypes = Dict(
 
 const metadataname = ".metadata.json"
 
-writemetadata( dir::String, nt::NamedTuple{T,U} ) where {T,U} =
-    write( joinpath( dir, metadataname ), JSON.json([T,string.(eltypes(nt))]) )
+getmetadata( nt::NamedTuple{T,U} ) where {T,U} =
+    [T,string.(eltypes(nt))]
+
+writemetadata( dir::String, metadata ) =
+    write( joinpath( dir, metadataname ), JSON.json( metadata ) )
+
+function addcolumn( dir::String, nt::NamedTuple{T,U}, name::Symbol, data::Vector ) where {T,U}
+    write( joinpath( dir, string(name) ), data )
+    metadata = getmetadata( nt )
+    indices = findall( metadata[1] .!= name )
+    writemetadata( dir, [(metadata[1][indices]..., name), [metadata[2][indices]; eltype(data)]] )
+end
 
 readmetadata( dir::String ) =
     JSON.parsefile( joinpath( dir, metadataname ) )

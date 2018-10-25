@@ -78,5 +78,7 @@ function f()
     return sums
 end
 
-sums2 = f()
+@time sums2 = f()
+@time sums2 = f()
+
 
