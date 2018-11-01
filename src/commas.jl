@@ -6,6 +6,10 @@ using JSON
 
 export DataRow, CharN
 
+gccount( gc) = gc.malloc + gc.realloc + gc.poolalloc + gc.bigalloc
+gctic() = gccount( Base.gc_num() )
+gctoc( tic ) = gccount( Base.gc_num() ) - tic
+
 abstract type AbstractDataRow end
 
 mutable struct DataRow{NT <: NamedTuple} <: AbstractDataRow
@@ -15,13 +19,19 @@ end
 
 eltypes( nt::NamedTuple{U,T} ) where {U,T} = eltype.([nt...])
 
+seen = Set()
+
 function makegetters( nt )
-    names = keys(nt)
-    getternames = Symbol.("get" .* string.(names))
-    for i = 1:length(names)
-         eval( quote
-             $(getternames[i])( row::DataRow{$(typeof(nt))} ) = row.nt.$(names[i])[row.row]
-         end )
+    t = typeof(nt)
+    if !( t in seen )
+        push!( seen, t )
+        names = keys(nt)
+        getternames = Symbol.("get" .* string.(names))
+        for i = 1:length(names)
+            eval( quote
+                  $(getternames[i])( row::DataRow{$(typeof(nt))} ) = row.nt.$(names[i])[row.row]
+                  end )
+        end
     end
 end
 
@@ -56,7 +66,7 @@ function readcomma( dir::String )
     for i = 1:length(cols)
         transformedtype = get( transformtypes, types[i], types[i] )
         datatype = Base.eval(Main, Meta.parse(transformedtype))
-        
+
         filename = joinpath( dir, cols[i] )
         filesize = stat( filename ).size
         n = Int(filesize/sizeof(datatype))
