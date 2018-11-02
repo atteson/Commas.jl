@@ -21,15 +21,17 @@ eltypes( nt::NamedTuple{U,T} ) where {U,T} = eltype.([nt...])
 
 seen = Set()
 
-function makegetters( nt )
-    t = typeof(nt)
-    if !( t in seen )
-        push!( seen, t )
-        names = keys(nt)
-        getternames = Symbol.("get" .* string.(names))
+makegetters( nt::NT ) where {NT <: NamedTuple} = makegetters( getmetadata( nt ) )
+
+function makegetters( metadata::Vector )
+    if !( metadata in seen )
+        push!( seen, metadata )
+        names = metadata[1]
+        getternames = Symbol.("get" .* names)
+        t = getnamedtupletype( metadata )
         for i = 1:length(names)
             eval( quote
-                  $(getternames[i])( row::DataRow{$(typeof(nt))} ) = row.nt.$(names[i])[row.row]
+                  $(getternames[i])( row::DataRow{$t} ) = row.nt.$(Symbol(names[i]))[row.row]
                   end )
         end
     end
@@ -45,7 +47,14 @@ transformtypes = Dict(
 const metadataname = ".metadata.json"
 
 getmetadata( nt::NamedTuple{T,U} ) where {T,U} =
-    [T,string.(eltypes(nt))]
+    [string.(T),string.(eltypes(nt))]
+
+function getnamedtupletype( metadata )
+    names = "(:" * join( metadata[1], ",:" ) * ")"
+    transformedtypes = [get( transformtypes, t, t ) for t in metadata[2]]
+    types = "Tuple{Vector{" * join( transformedtypes, "},Vector{" ) * "}}"
+    Base.eval(Main, Meta.parse( "NamedTuple{$names,$types}" ) )
+end
 
 writemetadata( dir::String, metadata ) =
     write( joinpath( dir, metadataname ), JSON.json( metadata ) )
@@ -53,12 +62,14 @@ writemetadata( dir::String, metadata ) =
 function addcolumn( dir::String, nt::NamedTuple{T,U}, name::Symbol, data::Vector ) where {T,U}
     write( joinpath( dir, string(name) ), data )
     metadata = getmetadata( nt )
-    indices = findall( metadata[1] .!= name )
+    indices = findall( metadata[1] .!= string(name) )
     writemetadata( dir, [(metadata[1][indices]..., name), [metadata[2][indices]; eltype(data)]] )
 end
 
 readmetadata( dir::String ) =
     JSON.parsefile( joinpath( dir, metadataname ) )
+
+init( dir::String ) = makegetters( readmetadata( dir ) )
 
 function readcomma( dir::String )
     (cols,types) = readmetadata( dir )
