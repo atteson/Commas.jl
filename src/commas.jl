@@ -148,5 +148,5 @@ Base.convert( ::Type{CharN{N}}, x::AbstractString ) where {N} = convert( CharN{N
 Base.convert( ::Type{String}, x::CharN{N} ) where {N} = strip(String([x...]))
 
 # This data structure doesn't support strings so this is the alternative for now
-Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String([tuple...]) )
+Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String(UInt8[tuple...]) )
 
