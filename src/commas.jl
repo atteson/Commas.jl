@@ -2,7 +2,6 @@ using JSON
 using Dates
 using Mmap
 using Formatting
-using JSON
 
 export DataRow, CharN
 
