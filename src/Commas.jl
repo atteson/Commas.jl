@@ -4,6 +4,7 @@ using JSON
 using Dates
 using Mmap
 using Formatting
+using DataFrames
 
 export DataRow, CharN
 
@@ -60,11 +61,25 @@ end
 writemetadata( dir::String, metadata ) =
     write( joinpath( dir, metadataname ), JSON.json( metadata ) )
 
+writecolumn( dir::String, name::Symbol, data::Vector ) = write( joinpath( dir, string(name) ), data )
+
 function addcolumn( dir::String, nt::NamedTuple{T,U}, name::Symbol, data::Vector ) where {T,U}
-    write( joinpath( dir, string(name) ), data )
+    writecolumn( dir, name, data )
     metadata = getmetadata( nt )
     indices = findall( metadata[1] .!= string(name) )
     writemetadata( dir, [(metadata[1][indices]..., name), [metadata[2][indices]; eltype(data)]] )
+end
+
+function writecomma( dir::String, data::DataFrame )
+    mkpath( dir )
+    types = Type[]
+    for (name,array) in eachcol(data)
+          missings = ismissing.(array)
+          @assert( !any(missings) )
+          push!( types, Missings.T(eltype(array)) )
+          writecolumn( dir, name, Vector{types[end]}(array) )
+    end
+    writemetadata( dir, [string.(names(data)), string.(types)] )
 end
 
 readmetadata( dir::String ) =
