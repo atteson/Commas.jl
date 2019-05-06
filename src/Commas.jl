@@ -106,6 +106,29 @@ function readcomma( dir::String )
     return df
 end
 
+struct SubComma{T,U}
+    comma::NamedTuple{T,U}
+    indices::AbstractVector{Int}
+end
+
+Base.getindex( comma::NamedTuple{T,U}, keep::BitVector, columns::AbstractVector{Symbol} ) where {T,U} =
+    SubComma( NamedTuple{(columns...,)}( [getfield(comma,c) for c in columns] ), findall(keep) )
+
+Base.keys( subcomma::SubComma{T,U} ) where {T,U} = keys( subcomma.comma )
+
+struct SubCommaColumn{T} <: AbstractVector{T}
+    v::AbstractVector{T}
+    indices::AbstractVector{Int}
+end
+
+Base.getindex( subcomma::SubComma{T}, col ) where {T} = SubCommaColumn( subcomma.comma[col], subcomma.indices )
+
+Base.getindex( col::SubCommaColumn{T}, i::Int ) where {T} = col.v[col.indices[i]]
+
+Base.length( col::SubCommaColumn{T} ) where {T} = length(col.v)
+
+Base.size( col::SubCommaColumn{T} ) where {T} = (length(col),)
+
 formats = Dict(
     Dates.Date => DateFormat( "mm/dd/yyyy" ),
     Dates.Time => DateFormat( "HH:MM:SS.sss" ),
@@ -126,7 +149,7 @@ align( c::NTuple{N,UInt8} where {N} ) = rpad
 
 function Base.show(
     io::IO,
-    df::NamedTuple{T,U};
+    df::Union{NamedTuple{T,U},SubComma{T,U}};
     toprows::Int = div(displaysize(io)[1], 2) - 3,
     bottomrows::Int = toprows,
     termwidth::Int = displaysize(io)[2],
@@ -137,7 +160,7 @@ function Base.show(
     columns = Vector{String}[]
     totallength = 0
     for k in keys(df)
-        col = getfield(df,k)
+        col = df[k]
 
         top = format.(col[1:toprows])
         bottom = format.(col[end-bottomrows+1:end])
