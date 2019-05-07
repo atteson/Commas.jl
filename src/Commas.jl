@@ -73,11 +73,13 @@ end
 function writecomma( dir::String, data::DataFrame )
     mkpath( dir )
     types = Type[]
-    for (name,array) in eachcol(data)
-          missings = ismissing.(array)
-          @assert( !any(missings) )
-          push!( types, Missings.T(eltype(array)) )
-          writecolumn( dir, name, Vector{types[end]}(array) )
+    for name in DataFrames.names(data)
+        array = data[name]
+        
+        missings = ismissing.(array)
+        @assert( !any(missings) )
+        push!( types, Missings.T(eltype(array)) )
+        writecolumn( dir, name, Vector{types[end]}(array) )
     end
     writemetadata( dir, [string.(names(data)), string.(types)] )
 end
@@ -125,7 +127,7 @@ Base.getindex( subcomma::SubComma{T}, col ) where {T} = SubCommaColumn( subcomma
 
 Base.getindex( col::SubCommaColumn{T}, i::Int ) where {T} = col.v[col.indices[i]]
 
-Base.length( col::SubCommaColumn{T} ) where {T} = length(col.v)
+Base.length( col::SubCommaColumn{T} ) where {T} = length(col.indices)
 
 Base.size( col::SubCommaColumn{T} ) where {T} = (length(col),)
 
