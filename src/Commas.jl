@@ -116,8 +116,12 @@ end
 Base.getindex( comma::NamedTuple{T,U}, keep::BitVector, columns::AbstractVector{Symbol} ) where {T,U} =
     SubComma( NamedTuple{(columns...,)}( [getfield(comma,c) for c in columns] ), findall(keep) )
 
+Base.getindex( comma::NamedTuple{T,U}, keep::BitVector, ::Colon ) where {T,U} = comma[keep, collect(keys(comma))]
+
 Base.getindex( comma::NamedTuple{T,U}, indices::AbstractVector{Int}, columns::AbstractVector{Symbol} ) where {T,U} =
     SubComma( NamedTuple{(columns...,)}( [getfield(comma,c) for c in columns] ), indices )
+
+Base.getindex( comma::NamedTuple{T,U}, indices::AbstractVector{Int}, ::Colon ) where {T,U} = comma[indices, collect(keys(comma))]
 
 Base.lastindex( comma::NamedTuple{T,U}, args... ) where {T,U} = length(comma[1])
 
