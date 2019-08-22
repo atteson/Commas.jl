@@ -104,7 +104,7 @@ function readcomma( dir::String )
         push!( coldata, col )
     end
     df = NamedTuple{(Symbol.(cols)...,)}( coldata )
-    makegetters( df )
+#    makegetters( df )
     return df
 end
 
