@@ -1,6 +1,5 @@
 module Commas
 
-using JSON
 using Dates
 using Mmap
 using Formatting
@@ -21,24 +20,6 @@ end
 
 eltypes( nt::NamedTuple{U,T} ) where {U,T} = eltype.([nt...])
 
-seen = Set()
-
-makegetters( nt::NT ) where {NT <: NamedTuple} = makegetters( getmetadata( nt ) )
-
-function makegetters( metadata::Vector )
-    if !( metadata in seen )
-        push!( seen, metadata )
-        names = metadata[1]
-        getternames = Symbol.("get" .* names)
-        t = getnamedtupletype( metadata )
-        for i = 1:length(names)
-            eval( quote
-                  $(getternames[i])( row::DataRow{$t} ) = row.nt.$(Symbol(names[i]))[row.row]
-                  end )
-        end
-    end
-end
-
 # required transformations to move from 0.6 to 1.0
 transformtypes = Dict(
     "Date" => "Commas.Dates.Date",
@@ -46,57 +27,39 @@ transformtypes = Dict(
     "Base.Dates.Time" => "Commas.Dates.Time",
 )
 
-const metadataname = ".metadata.json"
-
-getmetadata( nt::NamedTuple{T,U} ) where {T,U} =
-    [string.(T),string.(eltypes(nt))]
-
-function getnamedtupletype( metadata )
-    names = "(:" * join( metadata[1], ",:" ) * ")"
-    transformedtypes = [get( transformtypes, t, t ) for t in metadata[2]]
-    types = "Tuple{Vector{" * join( transformedtypes, "},Vector{" ) * "}}"
-    Base.eval(Main, Meta.parse( "NamedTuple{$names,$types}" ) )
+function writecolumn( dir::String, name::String, data::Vector{T}; append::Bool = false ) where {T}
+    io = open( joinpath( dir, name * "_$T" ), write=true, append=append )
+    write( io, data )
+    close( io )
 end
 
-writemetadata( dir::String, metadata ) =
-    write( joinpath( dir, metadataname ), JSON.json( metadata ) )
-
-writecolumn( dir::String, name::Symbol, data::Vector ) = write( joinpath( dir, string(name) ), data )
-
-function addcolumn( dir::String, nt::NamedTuple{T,U}, name::Symbol, data::Vector ) where {T,U}
-    writecolumn( dir, name, data )
-    metadata = getmetadata( nt )
-    indices = findall( metadata[1] .!= string(name) )
-    writemetadata( dir, [(metadata[1][indices]..., name), [metadata[2][indices]; eltype(data)]] )
-end
-
-function writecomma( dir::String, data::DataFrame )
+function writecomma( dir::String, data::DataFrame; append::Bool = false )
     mkpath( dir )
-    types = Type[]
-    for name in DataFrames.names(data)
-        array = data[name]
-        
+    for name in names(data)
+        array = data[!,name]
         missings = ismissing.(array)
         @assert( !any(missings) )
-        push!( types, Missings.T(eltype(array)) )
-        writecolumn( dir, name, Vector{types[end]}(array) )
+        writecolumn( dir, name, array, append=append )
     end
-    writemetadata( dir, [string.(names(data)), string.(types)] )
 end
 
-readmetadata( dir::String ) =
-    JSON.parsefile( joinpath( dir, metadataname ) )
-
-init( dir::String ) = makegetters( readmetadata( dir ) )
-
 function readcomma( dir::String )
-    (cols,types) = readmetadata( dir )
+    names = readdir( dir )
+    matches = match.( r"^(.*)_([A-z0-9,{}]*)$", names )
+    if any( matches .== nothing )
+        error( "Couldn't work out type(s) of:\n" * join( joinpath.( dir, names[matches.==nothing] ), "\n" ) * "\n" )
+    end
+
+    captures = getfield.( matches, :captures )
+    cols = getindex.( captures, 1 )
+    types = getindex.( captures, 2 )
+
     coldata = Vector[]
     for i = 1:length(cols)
         transformedtype = get( transformtypes, types[i], types[i] )
         datatype = Base.eval(Main, Meta.parse(transformedtype))
 
-        filename = joinpath( dir, cols[i] )
+        filename = joinpath( dir, names[i] )
         filesize = stat( filename ).size
         n = Int(filesize/sizeof(datatype))
         
@@ -104,7 +67,6 @@ function readcomma( dir::String )
         push!( coldata, col )
     end
     df = NamedTuple{(Symbol.(cols)...,)}( coldata )
-#    makegetters( df )
     return df
 end
 
@@ -147,6 +109,7 @@ formats = Dict(
     Float32 => "%0.2f",
     Float64 => "%0.2f",
     UInt32 => "%d",
+    Int32 => "%d",
     Dates.DateTime => DateFormat( "mm/dd/yyyy HH:MM:SS.sss" ),
 )
 
