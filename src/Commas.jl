@@ -70,10 +70,19 @@ function readcomma( dir::String )
     return df
 end
 
+Base.push!( comma::NamedTuple{T,U}, pair::Pair{Symbol,V} ) where {T,U,V<:AbstractVector} =
+    NamedTuple{(T...,pair[1])}( (values(comma)...,pair[2]) )
+
 struct SubComma{T,U}
     comma::NamedTuple{T,U}
     indices::AbstractVector{Int}
 end
+
+DataFrames.DataFrame( comma::Union{NamedTuple{T,U},SubComma{T,U}} ) where {T,U} =
+    DataFrame( values(comma), keys(comma) )
+
+Base.getindex( comma::NamedTuple{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
+    NamedTuple{(columns...,)}(getfield.( [comma], columns ))
 
 Base.getindex( comma::NamedTuple{T,U}, keep::BitVector, columns::AbstractVector{Symbol} ) where {T,U} =
     SubComma( NamedTuple{(columns...,)}( [getfield(comma,c) for c in columns] ), findall(keep) )
@@ -88,6 +97,7 @@ Base.getindex( comma::NamedTuple{T,U}, indices::AbstractVector{Int}, ::Colon ) w
 Base.lastindex( comma::NamedTuple{T,U}, args... ) where {T,U} = length(comma[1])
 
 Base.keys( subcomma::SubComma{T,U} ) where {T,U} = keys( subcomma.comma )
+Base.values( subcomma::SubComma{T,U} ) where {T,U} = values( subcomma.comma )
 
 struct SubCommaColumn{T} <: AbstractVector{T}
     v::AbstractVector{T}
