@@ -105,17 +105,15 @@ Base.size( col::SubCommaColumn{T} ) where {T} = (length(col),)
 formats = Dict(
     Dates.Date => DateFormat( "mm/dd/yyyy" ),
     Dates.Time => DateFormat( "HH:MM:SS.sss" ),
-    Int64 => "%d",
     Float32 => "%0.2f",
     Float64 => "%0.2f",
-    UInt32 => "%d",
-    Int32 => "%d",
     Dates.DateTime => DateFormat( "mm/dd/yyyy HH:MM:SS.sss" ),
 )
 
 format( d::Dates.TimeType ) = Dates.format( d, formats[typeof(d)] )
 format( x::Number ) = sprintf1( formats[typeof(x)], x )
-format( c::NTuple{N,UInt8} where {N} ) = string(c)
+format( x ) = string(x)
+format( x::Integer ) = string(x)
 
 align( d::Dates.TimeType ) = rpad
 align( x::Number ) = lpad
