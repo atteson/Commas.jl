@@ -5,7 +5,7 @@ using Mmap
 using Formatting
 using DataFrames
 
-export DataRow, CharN
+export DataRow, CharN, append
 
 gccount( gc) = gc.malloc + gc.realloc + gc.poolalloc + gc.bigalloc
 gctic() = gccount( Base.gc_num() )
@@ -70,15 +70,15 @@ function readcomma( dir::String )
     return df
 end
 
-Base.push!( comma::NamedTuple{T,U}, pair::Pair{Symbol,V} ) where {T,U,V<:AbstractVector} =
-    NamedTuple{(T...,pair[1])}( (values(comma)...,pair[2]) )
-
 struct SubComma{T,U}
     comma::NamedTuple{T,U}
     indices::AbstractVector{Int}
 end
 
-DataFrames.DataFrame( comma::Union{NamedTuple{T,U},SubComma{T,U}} ) where {T,U} =
+append( comma::Union{NamedTuple{T,U}, SubComma{T,U}}, pair::Pair{Symbol,V} ) where {T,U,V<:AbstractVector} =
+    NamedTuple{(T...,pair[1])}( (values(comma)...,pair[2]) )
+
+DataFrames.DataFrame( comma::Union{NamedTuple{T,U}, SubComma{T,U}} ) where {T,U} =
     DataFrame( values(comma), keys(comma) )
 
 Base.getindex( comma::NamedTuple{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
@@ -97,7 +97,7 @@ Base.getindex( comma::NamedTuple{T,U}, indices::AbstractVector{Int}, ::Colon ) w
 Base.lastindex( comma::NamedTuple{T,U}, args... ) where {T,U} = length(comma[1])
 
 Base.keys( subcomma::SubComma{T,U} ) where {T,U} = keys( subcomma.comma )
-Base.values( subcomma::SubComma{T,U} ) where {T,U} = values( subcomma.comma )
+Base.values( subcomma::SubComma{T,U} ) where {T,U} = getindex.( values( subcomma.comma ), [subcomma.indices] )
 
 struct SubCommaColumn{T} <: AbstractVector{T}
     v::AbstractVector{T}
