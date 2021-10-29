@@ -79,7 +79,7 @@ append( comma::Union{NamedTuple{T,U}, SubComma{T,U}}, pair::Pair{Symbol,V} ) whe
     NamedTuple{(T...,pair[1])}( (values(comma)...,pair[2]) )
 
 DataFrames.DataFrame( comma::Union{NamedTuple{T,U}, SubComma{T,U}} ) where {T,U} =
-    DataFrame( values(comma), keys(comma) )
+    DataFrame( [values(comma)...], [keys(comma)...] )
 
 Base.getindex( comma::NamedTuple{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
     NamedTuple{(columns...,)}(getfield.( [comma], columns ))
