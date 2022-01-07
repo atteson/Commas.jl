@@ -45,7 +45,7 @@ end
 
 function readcomma( dir::String )
     names = readdir( dir )
-    matches = match.( r"^(.*)_([A-z0-9,{}]*)$", names )
+    matches = match.( r"^(.*)_([A-z0-9,{} ]*)$", names )
     if any( matches .== nothing )
         error( "Couldn't work out type(s) of:\n" * join( joinpath.( dir, names[matches.==nothing] ), "\n" ) * "\n" )
     end
