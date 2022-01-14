@@ -5,7 +5,7 @@ using Mmap
 using Formatting
 using DataFrames
 
-export DataRow, CharN, append
+export DataRow, CharN, append, groupby
 
 gccount( gc) = gc.malloc + gc.realloc + gc.poolalloc + gc.bigalloc
 gctic() = gccount( Base.gc_num() )
@@ -33,10 +33,12 @@ function writecolumn( dir::String, name::String, data::Vector{T}; append::Bool =
     close( io )
 end
 
-function writecomma( dir::String, data::DataFrame; append::Bool = false )
+Base.names( comma::NamedTuple{T,U} ) where {T,U} = string.(keys(comma))
+
+function writecomma( dir::String, data::Union{DataFrame,NamedTuple{T,U}}; append::Bool = false ) where {T,U}
     mkpath( dir )
     for name in names(data)
-        array = data[!,name]
+        array = data[:,name]
         missings = ismissing.(array)
         @assert( !any(missings) )
         writecolumn( dir, name, array, append=append )
@@ -70,19 +72,33 @@ function readcomma( dir::String )
     return df
 end
 
-struct SubComma{T,U}
+Base.size( comma::NamedTuple{T,U} ) where {T,U} = (length(comma[1]), length(comma))
+
+Base.size( comma::NamedTuple{T,U}, i::Int ) where {T,U} = size(comma)[i]
+
+struct SubComma{T,U,V <: AbstractVector{Int}}
     comma::NamedTuple{T,U}
-    indices::AbstractVector{Int}
+    indices::V
 end
 
-append( comma::Union{NamedTuple{T,U}, SubComma{T,U}}, pair::Pair{Symbol,V} ) where {T,U,V<:AbstractVector} =
+Base.size( subcomma::SubComma{T,U,V} ) where {T,U,V} = (length(subcomma.indices), length(subcomma.comma))
+
+Base.size( subcomma::SubComma{T,U,V}, i::Int ) where {T,U,V} = size(subcomma)[i]
+
+append( comma::Union{NamedTuple{T,U}, SubComma{T,U,W}}, pair::Pair{Symbol,V} ) where {T,U,V<:AbstractVector,W} =
     NamedTuple{(T...,pair[1])}( (values(comma)...,pair[2]) )
 
-DataFrames.DataFrame( comma::Union{NamedTuple{T,U}, SubComma{T,U}} ) where {T,U} =
+Base.getindex( comma::NamedTuple{T,U}, ::Colon, column::String ) where {T,U} = comma[Symbol(column)]
+
+Base.getindex( comma::NamedTuple{T,U}, ::Colon, column::Symbol ) where {T,U} = comma[column]
+
+DataFrames.DataFrame( comma::Union{NamedTuple{T,U}, SubComma{T,U,V}} ) where {T,U,V} =
     DataFrame( [values(comma)...], [keys(comma)...] )
 
 Base.getindex( comma::NamedTuple{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
     NamedTuple{(columns...,)}(getfield.( [comma], columns ))
+
+Base.getindex( comma::NamedTuple{T,U}, keep::BitVector, column::Symbol ) where {T,U} = comma[keep,[column]]
 
 Base.getindex( comma::NamedTuple{T,U}, keep::BitVector, columns::AbstractVector{Symbol} ) where {T,U} =
     SubComma( NamedTuple{(columns...,)}( [getfield(comma,c) for c in columns] ), findall(keep) )
@@ -96,21 +112,26 @@ Base.getindex( comma::NamedTuple{T,U}, indices::AbstractVector{Int}, ::Colon ) w
 
 Base.lastindex( comma::NamedTuple{T,U}, args... ) where {T,U} = length(comma[1])
 
-Base.keys( subcomma::SubComma{T,U} ) where {T,U} = keys( subcomma.comma )
-Base.values( subcomma::SubComma{T,U} ) where {T,U} = getindex.( values( subcomma.comma ), [subcomma.indices] )
+Base.keys( subcomma::SubComma{T,U,V} ) where {T,U,V} = keys( subcomma.comma )
+Base.values( subcomma::SubComma{T,U,V} ) where {T,U,V} = getindex.( values( subcomma.comma ), [subcomma.indices] )
 
-struct SubCommaColumn{T} <: AbstractVector{T}
-    v::AbstractVector{T}
-    indices::AbstractVector{Int}
+struct SubCommaColumn{T,U<:AbstractVector{Int}} <: AbstractVector{T}
+    v::Vector{T}
+    indices::U
 end
 
-Base.getindex( subcomma::SubComma{T}, col ) where {T} = SubCommaColumn( subcomma.comma[col], subcomma.indices )
+Base.getindex( subcomma::SubComma{T,U,V}, col ) where {T,U,V} = SubCommaColumn( subcomma.comma[col], subcomma.indices )
 
-Base.getindex( col::SubCommaColumn{T}, i::Int ) where {T} = col.v[col.indices[i]]
+Base.getindex( col::SubCommaColumn{T,U}, i::Int ) where {T,U} = col.v[col.indices[i]]
 
-Base.length( col::SubCommaColumn{T} ) where {T} = length(col.indices)
+Base.length( col::SubCommaColumn{T,U} ) where {T,U} = length(col.indices)
 
-Base.size( col::SubCommaColumn{T} ) where {T} = (length(col),)
+Base.size( col::SubCommaColumn{T,U} ) where {T,U} = (length(col),)
+
+function groupby( comma::NamedTuple{T,U}, v::Vector{V} ) where {T,U,V}
+    changes = [0;findall(v[1:end-1].!=v[2:end]);length(v)]
+    return [comma[changes[i]+1:changes[i+1],:] for i in 1:length(changes)-1]
+end
 
 formats = Dict(
     Dates.Date => DateFormat( "mm/dd/yyyy" ),
@@ -131,11 +152,11 @@ align( c::NTuple{N,UInt8} where {N} ) = rpad
 
 function Base.show(
     io::IO,
-    df::Union{NamedTuple{T,U},SubComma{T,U}};
+    df::Union{NamedTuple{T,U},SubComma{T,U,V}};
     toprows::Int = div(displaysize(io)[1], 2) - 3,
     bottomrows::Int = toprows,
     termwidth::Int = displaysize(io)[2],
-) where {T,U <: NTuple{N,Vector} where {N}}
+) where {T,U,V}
     toprows = min(toprows, length(df[1]))
     bottomrows = min(bottomrows, length(df[1]) - toprows)
     
