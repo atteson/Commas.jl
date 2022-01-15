@@ -128,6 +128,26 @@ Base.length( col::SubCommaColumn{T,U} ) where {T,U} = length(col.indices)
 
 Base.size( col::SubCommaColumn{T,U} ) where {T,U} = (length(col),)
 
+function lexicographic( vs... )
+    function lt( x, y )
+        map(vs) do v
+            if v[x] < v[y]
+                return true
+            elseif v[x] > v[y]
+                return false
+            end
+        end
+        return false
+    end
+    return lt
+end
+
+function Base.sort( comma::NamedTuple{T,U}, keys::Vararg{Symbol} ) where {T,U}
+    indices = collect(1:size(comma,1))
+    sort!( indices, lt=lexicographic( getindex.( [comma], keys )... ) )
+    return SubComma( comma, indices )
+end
+
 function groupby( comma::NamedTuple{T,U}, v::Vector{V} ) where {T,U,V}
     changes = [0;findall(v[1:end-1].!=v[2:end]);length(v)]
     return [comma[changes[i]+1:changes[i+1],:] for i in 1:length(changes)-1]
@@ -150,13 +170,13 @@ align( d::Dates.TimeType ) = rpad
 align( x::Number ) = lpad
 align( c::NTuple{N,UInt8} where {N} ) = rpad
 
-function Base.show(
+function showcomma(
     io::IO,
-    df::Union{NamedTuple{T,U},SubComma{T,U,V}};
+    df;
     toprows::Int = div(displaysize(io)[1], 2) - 3,
     bottomrows::Int = toprows,
     termwidth::Int = displaysize(io)[2],
-) where {T,U,V}
+)
     toprows = min(toprows, length(df[1]))
     bottomrows = min(bottomrows, length(df[1]) - toprows)
     
@@ -182,6 +202,9 @@ function Base.show(
     end
     print( io, join( .*( columns... ), '\n' ) )
 end
+
+Base.show( io::IO, df::NamedTuple; kwargs... ) = showcomma( io, df; kwargs... )
+Base.show( io::IO, df::SubComma; kwargs... ) = showcomma( io, df; kwargs... )
 
 const CharN{N} = NTuple{N,UInt8}
 
