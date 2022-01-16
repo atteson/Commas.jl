@@ -131,21 +131,17 @@ Base.size( col::SubCommaColumn{T,U} ) where {T,U} = (length(col),)
 
 lexicographic( vs... ) = i -> getindex.( vs, i )
 
+#=struct SortedComma{T,U,V,W,X}
+    sorted::SubComma{T,U,V,W}
+end=#
+
 function Base.sort( comma::Union{Comma{T,U},SubComma{T,U,V,W}}, keys::Vararg{Symbol} ) where {T,U,V,W}
     indices = collect(1:size(comma,1))
     sort!( indices, by=lexicographic( getindex.( [comma], keys )... ) )
-    return SubComma( comma, indices )
+    return SortedComma( SubComma( comma, indices )
 end
 
-#=
-struct GroupedComma{T,U,V,W}
-    sorted::SubComma{T,U,V}
-    result::SubComma{T,U,W}
-    changes::Vector{Int}
-    i::Int
-end
-
-different( vs... ) =
+#=different( vs... ) =
     reduce( .&, 
             map(vs) do v
                 v[1:end-1] .!= v[2:end]
@@ -155,8 +151,7 @@ function groupby( comma::NamedTuple{T,U}, keys::Vararg{Symbol} ) where {T,U}
     sorted = sort( comma, keys... )
     changes = [0;different( getindex.( [sorted], keys )... )]
     return GroupedComma( sorted, SubComma( comma, sorted.indices[1:changes[2]] )
-end
-=#
+end=#
 
 formats = Dict(
     Dates.Date => DateFormat( "mm/dd/yyyy" ),
