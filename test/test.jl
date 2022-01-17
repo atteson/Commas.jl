@@ -61,4 +61,9 @@ sizes = Int[]
     push!( sizes, size(group,1) )
 end
 
+a = [size(group,1) for group in sorted];
+a = [size(group,1) for group in comma];
+@assert( length(a) == n )
+@assert( unique(a) == [1] )
+
 exit()

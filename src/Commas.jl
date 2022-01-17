@@ -16,9 +16,9 @@ mutable struct Comma{S,T,U,V <: Union{NamedTuple{T,U},AbstractComma{T,U}},W <: A
 end
 
 Comma( comma::NamedTuple{T,U}, v::V = 1:length(comma[1]) ) where {T,U,V <: AbstractVector{Int}} =
-    Comma{NTuple{0,Symbol},T,U,NamedTuple{T,U},V}( comma, v )
+    Comma{(),T,U,NamedTuple{T,U},V}( comma, v )
 Comma( comma::V, v::W = 1:size(comma,1) ) where {T,U,V <: AbstractComma{T,U}, W<: AbstractVector{Int}} =
-    Comma{NTuple{0,Symbol},T,U,V,W}( comma, v )
+    Comma{(),T,U,V,W}( comma, v )
 
 function Comma( df::DataFrame )
     ks = Symbol.(names(df))
@@ -148,7 +148,10 @@ function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol} ) where {S,T,U,V
     return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, indices )
 end
 
+Base.getindex( comma::AbstractComma{T,U}, i::Int, S::Tuple{} ) where {T,U} = getindex.( (comma,), i, T )
 Base.getindex( comma::AbstractComma{T,U}, i::Int, S::NTuple{N,Symbol} ) where {T,U,N} = getindex.( (comma,), i, S )
+
+Base.length( comma::Comma{NTuple{0,Symbol}} ) = size(comma,1)
 
 function Base.iterate( comma::Comma{S,T,U,V,W}, i::Int = 1 ) where {S,T,U,V,W}
     if i > size(comma,1)
@@ -163,6 +166,14 @@ function Base.iterate( comma::Comma{S,T,U,V,W}, i::Int = 1 ) where {S,T,U,V,W}
     end
 end
 
+function Base.length( comma::Comma )
+    l = 0
+    for group in comma
+        l += 1
+    end
+    return l
+end
+        
 formats = Dict(
     Dates.Date => DateFormat( "mm/dd/yyyy" ),
     Dates.Time => DateFormat( "HH:MM:SS.sss" ),
