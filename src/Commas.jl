@@ -19,6 +19,8 @@ Comma( comma::NamedTuple{T,U}, v::V = 1:length(comma[1]) ) where {T,U,V <: Abstr
     Comma{(),T,U,NamedTuple{T,U},V}( comma, v )
 Comma( comma::V, v::W = 1:size(comma,1) ) where {T,U,V <: AbstractComma{T,U}, W<: AbstractVector{Int}} =
     Comma{(),T,U,V,W}( comma, v )
+Comma( S, nt::NamedTuple{T,U}, indices::V ) where {T,U,V} = 
+    Comma{S,T,U,NamedTuple{T,U},V}( nt, indices )
 
 function Comma( df::DataFrame )
     ks = Symbol.(names(df))
@@ -107,6 +109,17 @@ Base.values( subcomma::AbstractComma{T,U} ) where {T,U} = getindex.( values( sub
 
 DataFrames.DataFrame( comma::AbstractComma{T,U} ) where {T,U} =
     DataFrame( Any[values(comma)...], [keys(comma)...] )
+
+function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},UnitRange{Int}}, kwargs... ) where {S,T,U}
+    n = size(comma,1)
+    @assert( comma.indices.start == 1 )
+    @assert( n == length(comma.comma[1]) )
+    ks = (T...,keys(kwargs)...)
+    vs = (values(comma.comma)...,values(kwargs)...);
+    nt = NamedTuple{ks}( vs );
+    result = Comma( S, nt, 1:n );
+    return result
+end
 
 Base.getindex( comma::AbstractComma{T,U}, ::Colon, column::Union{String,Symbol} ) where {T,U} = comma[column]
 

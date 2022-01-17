@@ -66,4 +66,9 @@ a = [size(group,1) for group in comma];
 @assert( length(a) == n )
 @assert( unique(a) == [1] )
 
+x = comma[:a].^2;
+y = comma[:b].^2;
+@time bigger = [comma, :x => x];
+@time bigger = [comma, :x => x, :y => y];
+
 exit()
