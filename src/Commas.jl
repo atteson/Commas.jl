@@ -5,7 +5,7 @@ using Mmap
 using Formatting
 using DataFrames
 
-export CharN, Comma, CommaColumn
+export CharN, Comma, CommaColumn, groupby
 
 abstract type AbstractComma{T,U}
 end
@@ -110,12 +110,13 @@ Base.values( subcomma::AbstractComma{T,U} ) where {T,U} = getindex.( values( sub
 DataFrames.DataFrame( comma::AbstractComma{T,U} ) where {T,U} =
     DataFrame( Any[values(comma)...], [keys(comma)...] )
 
+
 function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},UnitRange{Int}}, kwargs... ) where {S,T,U}
     n = size(comma,1)
     @assert( comma.indices.start == 1 )
     @assert( n == length(comma.comma[1]) )
-    ks = (T...,keys(kwargs)...)
-    vs = (values(comma.comma)...,values(kwargs)...);
+    ks = (T...,getindex.(kwargs, 1)...)
+    vs = (values(comma.comma)...,getindex.(kwargs, 2)...);
     nt = NamedTuple{ks}( vs );
     result = Comma( S, nt, 1:n );
     return result
@@ -131,12 +132,12 @@ Base.getindex( comma::AbstractComma{T,U}, columns::AbstractVector{Symbol} ) wher
 Base.getindex( comma::AbstractComma{T,U}, i::Int, column::Symbol ) where {T,U} = comma.comma[column][comma.indices[i]]
 Base.getindex( comma::AbstractComma{T,U}, i::Int, column::String ) where {T,U} = comma[i,Symbol(column)]
 
-Base.getindex( comma::AbstractComma{T,U}, keep::BitVector, columns::AbstractVector{Symbol} ) where {T,U} =
+Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, columns::AbstractVector{Symbol} ) where {T,U} =
     Comma( comma[columns], findall(keep) )
     
-Base.getindex( comma::AbstractComma{T,U}, keep::BitVector, column::Symbol ) where {T,U} = comma[keep,[column]]
+Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, column::Symbol ) where {T,U} = comma[keep,[column]]
 
-Base.getindex( comma::AbstractComma{T,U}, keep::BitVector, ::Colon ) where {T,U} =
+Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, ::Colon ) where {T,U} =
     comma[keep, collect(keys(comma))]
 
 Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int}, columns::AbstractVector{Symbol} ) where {T,U} =
@@ -155,36 +156,58 @@ Base.size( col::CommaColumn{T,U,V} ) where {T,U,V} = (length(col),)
 
 lexicographic( vs... ) = i -> getindex.( vs, i )
 
-function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol} ) where {S,T,U,V,W}
+function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; kwargs... ) where {S,T,U,V,W}
     indices = collect(1:size(comma,1))
-    sort!( indices, by=lexicographic( getindex.( [comma], ks )... ) )
-    return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, indices )
+    lt = lexicographic( getindex.( [comma], ks )... )
+    if issorted( indices, by=lt; kwargs... )
+        return Comma{ks,T,U,V,W}( comma.comma, comma.indices )
+    else
+        sort!( indices, by=lt; kwargs... )
+        return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, indices )
+    end
 end
 
-Base.getindex( comma::AbstractComma{T,U}, i::Int, S::Tuple{} ) where {T,U} = getindex.( (comma,), i, T )
+sortcols( comma::Comma{S,T,U,V,W}, i::Int ) where {S,T,U,V,W} = getindex.( (comma,), i, S )
+
 Base.getindex( comma::AbstractComma{T,U}, i::Int, S::NTuple{N,Symbol} ) where {T,U,N} = getindex.( (comma,), i, S )
 
-Base.length( comma::Comma{NTuple{0,Symbol}} ) = size(comma,1)
-
-function Base.iterate( comma::Comma{S,T,U,V,W}, i::Int = 1 ) where {S,T,U,V,W}
-    if i > size(comma,1)
-        return nothing
-    else
-        tuple = comma[i,S]
-        j = i + 1
-        while j < size(comma,1) && comma[j,S] == tuple
-            j += 1
-        end
-        return (Comma( comma, i:j-1 ), j)
-    end
+struct Groups{S,T,U,V,W}
+    changes::Vector{Int}
+    comma::Comma{S,T,U,V,W}
 end
 
-function Base.length( comma::Comma )
-    l = 0
-    for group in comma
-        l += 1
+Base.length( groups::Groups ) = length( groups.changes )-1
+
+function findchanges( lt::F, n::Int ) where {F <: Function}
+    changes = [1]
+
+    i = 1
+    prev = lt(i)
+    i += 1
+    next = lt(i)
+    while i <= n
+        next = lt(i)
+        if prev != next
+            push!( changes, i )
+            prev = next
+        end
+        i += 1
     end
-    return l
+    push!( changes, i )
+    return changes
+end
+
+function groupby( comma::Comma{S,T,U,V,W} ) where {S,T,U,V,W}
+    changes = findchanges( lexicographic( getindex.( [comma], S )... ), size(comma,1) )
+    return Groups( changes, comma )
+end
+
+function Base.iterate( groups::Groups, i::Int = 1 )
+    if i < length(groups.changes)
+        return (Comma( groups.comma, groups.changes[i]:groups.changes[i+1]-1 ), i+1)
+    else
+        return nothing
+    end
 end
         
 formats = Dict(
