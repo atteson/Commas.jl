@@ -48,10 +48,18 @@ transformtypes = Dict(
     "Base.Dates.Time" => "Commas.Dates.Time",
 )
 
+Base.write( io::IO, v::Base.ReinterpretArray{T,U,V,W} ) where {T,U,V,W} =
+    write( io, reinterpret( V, v ) )
+
 function Base.write( filename::String, data::CommaColumn{T,U,V}; append::Bool = false ) where {T,U,V}
     io = open( joinpath( filename * "_$T" ), write=true, append=append )
-    for i = 1:length(data)
-        write( io, data[i] )
+    n = length(data)
+    if data.indices == 1:n
+        write( io, data.v )
+    else
+        for i = 1:length(data)
+            write( io, data[i] )
+        end
     end
     close( io )
 end
@@ -109,7 +117,6 @@ Base.values( subcomma::AbstractComma{T,U} ) where {T,U} = getindex.( values( sub
 
 DataFrames.DataFrame( comma::AbstractComma{T,U} ) where {T,U} =
     DataFrame( Any[values(comma)...], [keys(comma)...] )
-
 
 function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},UnitRange{Int}}, kwargs... ) where {S,T,U}
     n = size(comma,1)
