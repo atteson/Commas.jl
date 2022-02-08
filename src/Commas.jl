@@ -95,15 +95,16 @@ function Base.read( dir::String, ::Type{Comma} )
     cols = getindex.( captures, 1 )
     types = getindex.( captures, 2 )
 
-    coldata = Vector[]
+    nt = NamedTuple{}()
     for i = 1:length(cols)
         transformedtype = get( transformtypes, types[i], types[i] )
         datatype = Base.eval(Main, Meta.parse(transformedtype))
 
         filename = joinpath( dir, names[i] )
-        push!( coldata, read( filename, CommaColumn{datatype} ) )
+        col = read( filename, CommaColumn{datatype} );
+        nt = merge( nt, (;Symbol(cols[i]) => col) );
     end
-    return Comma( NamedTuple{(Symbol.(cols)...,)}( coldata ) )
+    return Comma( nt )
 end
 
 Base.size( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = (length(comma.comma[1]), length(comma.comma))
@@ -143,6 +144,9 @@ Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, columns::A
     Comma( comma[columns], findall(keep) )
     
 Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, column::Symbol ) where {T,U} = comma[keep,[column]]
+
+Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool} ) where {T,U} =
+    comma[keep, collect(keys(comma))]
 
 Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, ::Colon ) where {T,U} =
     comma[keep, collect(keys(comma))]
