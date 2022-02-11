@@ -39,7 +39,7 @@ Base.getindex( col::CommaColumn, i::Int ) = col.v[col.indices[i]]
 
 Base.getindex( comma::Comma, column::Symbol ) = CommaColumn( comma.comma[column], comma.indices )
 
-CommaColumn( v::AbstractVector, indices::V = 1:size(comma,1) ) where {V} = CommaColumn( v, indices )
+CommaColumn( v::AbstractVector, indices::V = 1:length(v) ) where {V} = CommaColumn( v, indices )
 
 # required transformations to move from 0.6 to 1.0
 transformtypes = Dict(
@@ -66,7 +66,7 @@ end
 
 function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
     filesize = stat( filename ).size
-    n = Int(filesize/sizeof(T))
+    n = sizeof(T) == 0 ? 0 : Int(filesize/sizeof(T))
         
     return CommaColumn( Mmap.mmap( filename, Vector{T}, n ), 1:n )
 end
@@ -253,21 +253,22 @@ function Base.show(
     totallength = 0
     for k in keys(df)
         col = df[k]
-
-        top = format.(col[1:toprows])
-        bottom = format.(col[end-bottomrows+1:end])
-        colstrings = [string(k); top]
-        if bottomrows > 0
-            colstrings = [colstrings; "..."; bottom]
-        end
+        if sizeof(eltype(col)) != 0
+            top = format.(col[1:toprows])
+            bottom = format.(col[end-bottomrows+1:end])
+            colstrings = [string(k); top]
+            if bottomrows > 0
+                colstrings = [colstrings; "..."; bottom]
+            end
             
-        
-        collength = maximum(length.(colstrings)) + 1
-        totallength += collength
-        totallength > termwidth && break
-        
-        colstrings = align( col[1] ).( colstrings, collength )
-        push!( columns, colstrings )
+            
+            collength = maximum(length.(colstrings)) + 1
+            totallength += collength
+            totallength > termwidth && break
+            
+            colstrings = align( col[1] ).( colstrings, collength )
+            push!( columns, colstrings )
+        end
     end
     print( io, join( .*( columns... ), '\n' ) )
 end
@@ -280,5 +281,32 @@ Base.convert( ::Type{String}, x::CharN{N} ) where {N} = strip(String([x...]))
 
 # This data structure doesn't support strings so this is the alternative for now
 Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String(UInt8[tuple...]) )
+
+function CommaColumn( v::AbstractVector{T}, indices::V = 1:length(v) ) where {T <: AbstractString, V <: AbstractVector{Int}}
+    N = length(v)
+    l = mapreduce( length, max, v )
+    if l > 0
+        vu = fill( UInt8(' '), N*l )
+
+        j = 1
+        for i = 1:N
+            copyto!( vu, j, v[i] )
+            j += l
+        end
+        vc = reinterpret( CharN{l}, vu )
+    else
+        vc = Vector{CharN{0}}( undef, N )
+    end
+
+    return CommaColumn( vc, indices )
+end
+
+function Comma( dir::String, df::DataFrame )
+    mkpath(dir)
+    for name in names(df)
+        write( joinpath( dir, name ), CommaColumn( df[!,name] ) )
+    end
+    return read( dir, Comma )
+end
 
 end # module
