@@ -84,7 +84,7 @@ function Base.write( dir::String, data::AbstractComma{T,U}; append::Bool = false
     end
 end
 
-function Base.read( dir::String, ::Type{Comma} )
+function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf )
     names = readdir( dir )
     matches = match.( r"^(.*)_([A-z0-9,{} ]*)$", names )
     if any( matches .== nothing )
@@ -95,16 +95,19 @@ function Base.read( dir::String, ::Type{Comma} )
     cols = getindex.( captures, 1 )
     types = getindex.( captures, 2 )
 
-    nt = NamedTuple{}()
-    for i = 1:length(cols)
+    #nt = NamedTuple{}()
+    range = startcolindex:Int(min(endcolindex,length(cols)))
+    data = []
+    for i in range
         transformedtype = get( transformtypes, types[i], types[i] )
         datatype = Base.eval(Main, Meta.parse(transformedtype))
 
         filename = joinpath( dir, names[i] )
         col = read( filename, CommaColumn{datatype} );
-        nt = merge( nt, (;Symbol(cols[i]) => col) );
+        #        nt = merge( nt, (;Symbol(cols[i]) => col) );
+        push!( data, col )
     end
-    return Comma( nt )
+    return Comma( NamedTuple{(Symbol.(cols[range])...,)}( data ) )
 end
 
 Base.size( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = (length(comma.comma[1]), length(comma.comma))
