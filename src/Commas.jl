@@ -5,6 +5,8 @@ using Mmap
 using Formatting
 using DataFrames
 
+import DataFrames: groupby
+
 export CharN, Comma, CommaColumn, groupby
 
 abstract type AbstractComma{T,U}
@@ -311,5 +313,8 @@ function Comma( dir::String, df::DataFrame )
     end
     return read( dir, Comma )
 end
+
+Base.show( io::IO, df::Type{Comma{S,T,U,V,W}} ) where {S,T,U,V,W} = 
+    print( io, "Comma{$S,...,$W}" )
 
 end # module
