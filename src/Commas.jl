@@ -135,8 +135,6 @@ function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},UnitRange{Int}}, kwargs..
     return result
 end
 
-Base.getindex( comma::AbstractComma{T,U}, ::Colon, column::Union{String,Symbol} ) where {T,U} = comma[column]
-
 Base.getindex( comma::Comma{S,T,U,NamedTuple{T,U}}, columns::AbstractVector{Symbol} ) where {S,T,U} =
     Comma( NamedTuple{(columns...,)}(getfield.( [comma.comma], columns )) )
 Base.getindex( comma::AbstractComma{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
@@ -148,19 +146,15 @@ Base.getindex( comma::AbstractComma{T,U}, i::Int, column::String ) where {T,U} =
 Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, columns::AbstractVector{Symbol} ) where {T,U} =
     Comma( comma[columns], findall(keep) )
     
-Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, column::Symbol ) where {T,U} = comma[keep,[column]]
+Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, column::Symbol ) where {T,U} = comma[column][keep]
 
 Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool} ) where {T,U} =
     comma[keep, collect(keys(comma))]
 
-Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, ::Colon ) where {T,U} =
-    comma[keep, collect(keys(comma))]
-
 Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int}, columns::AbstractVector{Symbol} ) where {T,U} =
     Comma( comma[columns], indices )
-
-Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int}, ::Colon ) where {T,U} =
-    comma[indices, collect(keys(comma))]
+Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int}, column::Symbol ) where {T,U} =
+    comma[column][indices]
 
 Base.lastindex( comma::AbstractComma{T,U}, args... ) where {T,U} = length(comma.indices)
 
