@@ -135,6 +135,12 @@ function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},UnitRange{Int}}, kwargs..
     return result
 end
 
+materialize( comma::AbstractComma{T,U} ) where {T,U} =
+    Comma(NamedTuple{keys(comma)}(collect.( getindex.( [comma], keys(comma) ) )));
+
+Base.vcat( comma::AbstractComma{T,U}, kwargs... ) where {T,U} =
+    vcat( materialize( comma ), kwargs... )
+
 Base.getindex( comma::Comma{S,T,U,NamedTuple{T,U}}, columns::AbstractVector{Symbol} ) where {S,T,U} =
     Comma( NamedTuple{(columns...,)}(getfield.( [comma.comma], columns )) )
 Base.getindex( comma::AbstractComma{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
@@ -155,6 +161,9 @@ Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int}, columns:
     Comma( comma[columns], indices )
 Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int}, column::Symbol ) where {T,U} =
     comma[column][indices]
+
+Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int} ) where {T,U} =
+    Comma( comma, indices )
 
 Base.lastindex( comma::AbstractComma{T,U}, args... ) where {T,U} = length(comma.indices)
 
@@ -207,10 +216,12 @@ function findchanges( lt::F, n::Int ) where {F <: Function}
     return changes
 end
 
-function groupby( comma::Comma{S,T,U,V,W} ) where {S,T,U,V,W}
-    changes = findchanges( lexicographic( getindex.( [comma], S )... ), size(comma,1) )
+function groupby( comma::Comma{S,T,U,V,W}, fields::Symbol... ) where {S,T,U,V,W}
+    changes = findchanges( lexicographic( getindex.( [comma], fields )... ), size(comma,1) )
     return Groups( changes, comma )
 end
+
+groupby( comma::Comma{S,T,U,V,W} ) where {S,T,U,V,W} = groupby( comma, S... )
 
 function Base.iterate( groups::Groups, i::Int = 1 )
     if i < length(groups.changes)
