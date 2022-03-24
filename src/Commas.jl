@@ -220,6 +220,7 @@ function findchanges( lt::F, n::Int ) where {F <: Function}
 end
 
 function groupby( comma::Comma{S,T,U,V,W}, fields::Symbol... ) where {S,T,U,V,W}
+    @assert( S[1:length(fields)] == fields )
     changes = findchanges( lexicographic( getindex.( [comma], fields )... ), size(comma,1) )
     return Groups( changes, comma )
 end
