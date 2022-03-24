@@ -149,6 +149,9 @@ Base.getindex( comma::AbstractComma{T,U}, columns::AbstractVector{Symbol} ) wher
 Base.getindex( comma::AbstractComma{T,U}, i::Int, column::Symbol ) where {T,U} = comma.comma[column][comma.indices[i]]
 Base.getindex( comma::AbstractComma{T,U}, i::Int, column::String ) where {T,U} = comma[i,Symbol(column)]
 
+Base.setindex!( comma::AbstractComma{T,U}, v::V, i::Int, column::Symbol ) where {T,U,V} = comma.comma[column][comma.indices[i]] = v
+Base.setindex!( comma::AbstractComma{T,U}, v::V, i::Int, column::String ) where {T,U,V} = comma[i,Symbol(column)] = v
+
 Base.getindex( comma::AbstractComma{T,U}, keep::AbstractVector{Bool}, columns::AbstractVector{Symbol} ) where {T,U} =
     Comma( comma[columns], findall(keep) )
     
