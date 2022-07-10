@@ -280,7 +280,7 @@ function Base.show(
             totallength += collength
             totallength > termwidth && break
             
-            colstrings = align( col[1] ).( colstrings, collength )
+            colstrings = align( col[1] ).( colstrings, collength - 1 ) .* " "
             push!( columns, colstrings )
         end
     end
