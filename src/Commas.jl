@@ -135,8 +135,14 @@ function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},UnitRange{Int}}, kwargs..
     return result
 end
 
-materialize( comma::AbstractComma{T,U} ) where {T,U} =
-    Comma(NamedTuple{keys(comma)}(collect.( getindex.( [comma], keys(comma) ) )));
+materialize( col::CommaColumn{T,U,V} ) where {T,U,V} = 
+     CommaColumn( copy!( mmap( Mmap.Anonymous(), Vector{T}, length(col), 0 ), col ) )
+
+function materialize( comma::AbstractComma{T,U} ) where {T,U}
+    # this might take a lot of memory; let's make sure we have it
+    GC.gc()
+    return Comma(NamedTuple{keys(comma)}(materialize.( getindex.( [comma], keys(comma) ) )))
+end
 
 Base.vcat( comma::AbstractComma{T,U}, kwargs... ) where {T,U} =
     vcat( materialize( comma ), kwargs... )
@@ -180,7 +186,9 @@ lexicographic( vs... ) = i -> getindex.( vs, i )
 
 function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; kwargs... ) where {S,T,U,V,W}
     indices = collect(1:size(comma,1))
-    lt = lexicographic( getindex.( [comma], ks )... )
+    # this could take some memory so we should garbage collect first
+    GC.gc()
+    lt = lexicographic( materialize.(getindex.( [comma], ks ) )... )
     if issorted( indices, by=lt; kwargs... )
         return Comma{ks,T,U,V,W}( comma.comma, comma.indices )
     else
