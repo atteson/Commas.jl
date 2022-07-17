@@ -5,6 +5,8 @@ using Mmap
 using Formatting
 using DataFrames
 
+include("sort.jl")
+
 import DataFrames: groupby
 
 export CharN, Comma, CommaColumn, groupby
@@ -182,19 +184,14 @@ Base.length( col::CommaColumn{T,U,V} ) where {T,U,V} = length(col.indices)
 
 Base.size( col::CommaColumn{T,U,V} ) where {T,U,V} = (length(col),)
 
-lexicographic( vs... ) = i -> getindex.( vs, i )
-
 function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; kwargs... ) where {S,T,U,V,W}
     indices = collect(1:size(comma,1))
     # this could take some memory so we should garbage collect first
     GC.gc()
-    lt = lexicographic( materialize.(getindex.( [comma], ks ) )... )
-    if issorted( indices, by=lt; kwargs... )
-        return Comma{ks,T,U,V,W}( comma.comma, comma.indices )
-    else
-        sort!( indices, by=lt; kwargs... )
-        return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, indices )
-    end
+    vs = materialize.(getindex.( [comma], ks ) )
+    perm = 1:length(vs[1])
+    sortperm!.( [perm], vs, alg=CountingSortAlg() )
+    return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, indices )
 end
 
 sortcols( comma::Comma{S,T,U,V,W}, i::Int ) where {S,T,U,V,W} = getindex.( (comma,), i, S )
