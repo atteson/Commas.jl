@@ -2,13 +2,11 @@
 struct CountingSortAlg <: Base.Algorithm end
 
 function boundedcountmap(
-    v::AbstractVector{T},
-    lo::Integer,
-    hi::Integer;
+    v::AbstractVector{T};
     bound::Integer = 2 ^ 20,
 ) where {T}
     map = Dict{T,Int}()
-    for i = lo:hi
+    for i = 1:length(v)
         map[v[i]] = get( map, v[i], 0 ) + 1
         if length(map) > bound
             return (false,map)
@@ -19,17 +17,15 @@ end
 
 function Base.sort!(
     startperm::AbstractVector{T},
-    v::AbstractVector,
-    lo::Integer,
-    hi::Integer,
-    a::CountingSortAlg,
-    o::Base.Ordering,
+    ::CountingSortAlg,
+    o::Base.Perm,
 ) where {T <: Integer}
-    (toobig,cm) = boundedcountmap( v );
-    if toobig
-        return sortperm( v, lo, hi, MergeSort, o )
+    v = o.data
+    (nottoobig,cm) = boundedcountmap( v );
+    if !nottoobig
+        return sortperm( startperm, MergeSort, o )
     end
-    sks = sort(collect(keys(cm)), order=o);
+    sks = sort(collect(keys(cm)))
     indices = Dict( zip( sks, [1;1 .+ cumsum( getindex.( [cm], sks ) )[1:end-1]] ) );
 
     n = length(v);
