@@ -1,14 +1,10 @@
 
-struct CountingSortAlg <: Base.Algorithm end
-
 function boundedcountmap(
-    v::AbstractVector{T},
-    lo::Int = firstindex(v),
-    hi::Int = lastindex(v);
+    v::AbstractVector{T};
     bound::Integer = 2 ^ 20,
 ) where {T}
     map = Dict{T,Int}()
-    for i = lo:hi
+    for i = 1:length(v)
         map[v[i]] = get( map, v[i], 0 ) + 1
         if length(map) > bound
             return (false,map)
@@ -17,40 +13,37 @@ function boundedcountmap(
     return (true,map)
 end
 
+export countingsortperm!
+
 # this is really sortperm!
-function Base.sort!(
+# Base sort is not designed in a way to easily override sortperm!
+function countingsortperm!(
     startperm::AbstractVector{Int},
-    lo::Int,
-    hi::Int,
-    ::CountingSortAlg,
-    o::Base.Perm{T,U},
-) where {T <: Base.Ordering, U <: AbstractVector}
+    v::AbstractVector;
+    initialized::Bool = false,
+)
     # note that there is a special sorting algorithm for floats which conflicts with the above
-    v = o.data
-    (nottoobig,cm) = boundedcountmap( v, lo, hi );
+    (nottoobig,cm) = boundedcountmap( v );
     if !nottoobig
-        return sortperm!( startperm, lo, hi, MergeSort, o, initialized=true )
+        return sortperm!( startperm, v, alg=MergeSort, initialized=initialized )
     end
     sks = sort(collect(keys(cm)))
     indices = Dict( zip( sks, [1;1 .+ cumsum( getindex.( [cm], sks ) )[1:end-1]] ) );
 
     n = length(v);
-    perm = zeros( Int, n )
-    for i = lo:hi
+    if !initialized
+        for i = 1:n
+            startperm[i] = i
+        end
+    end
+    perm = zeros( Int, n );
+    for i = 1:n
         x = v[startperm[i]]
         perm[indices[x]] = startperm[i]
         indices[x] += 1
     end
-    for i = lo:hi
+    for i = 1:n
         startperm[i] = perm[i]
     end
     return startperm
 end
-
-Base.sort!(
-    startperm::AbstractVector{Int},
-    alg::CountingSortAlg,
-    o::Base.Perm{T,U},
-) where {T <: Base.Ordering, V <: Union{Int,Date}, U <: AbstractVector{V}} =
-    sort!( startperm, firstindex(startperm), lastindex(startperm), alg, o )
-    
