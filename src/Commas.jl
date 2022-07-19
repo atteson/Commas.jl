@@ -4,6 +4,7 @@ using Dates
 using Mmap
 using Formatting
 using DataFrames
+using ZippedArrays
 
 include("sort.jl")
 
@@ -184,14 +185,15 @@ Base.length( col::CommaColumn{T,U,V} ) where {T,U,V} = length(col.indices)
 
 Base.size( col::CommaColumn{T,U,V} ) where {T,U,V} = (length(col),)
 
-function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; kwargs... ) where {S,T,U,V,W}
-    indices = collect(1:size(comma,1))
-    # this could take some memory so we should garbage collect first
+function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol} ) where {S,T,U,V,W}
+    # materialize could take some memory so we should garbage collect first
     GC.gc()
-    vs = materialize.(getindex.( [comma], ks ) )
+    vs = materialize.(getindex.( [comma], reverse(ks) ) )
     perm = 1:length(vs[1])
-    sortperm!.( [perm], vs, alg=CountingSortAlg() )
-    return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, indices )
+    for v in vs
+        perm = countingsortperm( perm, v );
+    end
+    return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, perm )
 end
 
 sortcols( comma::Comma{S,T,U,V,W}, i::Int ) where {S,T,U,V,W} = getindex.( (comma,), i, S )
@@ -205,15 +207,15 @@ end
 
 Base.length( groups::Groups ) = length( groups.changes )-1
 
-function findchanges( lt::F, n::Int ) where {F <: Function}
+function findchanges( a::AbstractVector )
+    n = length(a)
     changes = [1]
 
     i = 1
-    prev = lt(i)
+    prev = a[i]
     i += 1
-    next = lt(i)
     while i <= n
-        next = lt(i)
+        next = a[i]
         if prev != next
             push!( changes, i )
             prev = next
@@ -226,7 +228,7 @@ end
 
 function groupby( comma::Comma{S,T,U,V,W}, fields::Symbol... ) where {S,T,U,V,W}
     @assert( S[1:length(fields)] == fields )
-    changes = findchanges( lexicographic( getindex.( [comma], fields )... ), size(comma,1) )
+    changes = findchanges( ZippedArray( getindex.( [comma], fields )... ) )
     return Groups( changes, comma )
 end
 

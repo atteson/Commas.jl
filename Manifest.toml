@@ -295,6 +295,11 @@ git-tree-sha1 = "960639a12ffd223ee463e93392aeb260fa325566"
 uuid = "ea10d353-3f73-51f8-a26c-33c1cb351aa5"
 version = "0.5.8"
 
+[[ZippedArrays]]
+git-tree-sha1 = "0fe5b07a9b0bd9d56bcf0f013e603b9abd1aa033"
+uuid = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
+version = "0.1.1"
+
 [[Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
