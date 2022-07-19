@@ -110,7 +110,7 @@ function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf
         filename = joinpath( dir, names[i] )
         col = read( filename, CommaColumn{datatype} );
         #        nt = merge( nt, (;Symbol(cols[i]) => col) );
-        push!( data, col )
+        push!( data, col.v )
     end
     return Comma( NamedTuple{(Symbol.(cols[range])...,)}( data ) )
 end
