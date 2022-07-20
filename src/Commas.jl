@@ -56,17 +56,32 @@ transformtypes = Dict(
 Base.write( io::IO, v::Base.ReinterpretArray{T,U,V,W} ) where {T,U,V,W} =
     write( io, reinterpret( V, v ) )
 
-function Base.write( filename::String, data::CommaColumn{T,U,V}; append::Bool = false ) where {T,U,V}
+function Base.write( filename::String, data::CommaColumn{T,U,V}; append::Bool = false, buffersize=2^20 ) where {T,U,V}
     io = open( joinpath( filename * "_$T" ), write=true, append=append )
+    
     n = length(data)
     if data.indices == 1:n
-        write( io, data.v )
+        nb = write( io, data.v )
     else
-        for i = 1:length(data)
-            write( io, data[i] )
+        buffer = Array{T}( undef, buffersize )
+
+        nb = 0
+        i = 1
+        while i <= n
+            j = 1
+            while j <= buffersize && i <= n
+                buffer[j] = data[i]
+                j += 1
+                i += 1
+            end
+            if j < buffersize
+                resize!( buffer, j )
+            end
+            nb += write( io, buffer )
         end
     end
     close( io )
+    return nb
 end
 
 function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
@@ -115,7 +130,7 @@ function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf
     return Comma( NamedTuple{(Symbol.(cols[range])...,)}( data ) )
 end
 
-Base.size( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = (length(comma.comma[1]), length(comma.comma))
+Base.size( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = (length(comma.indices), length(comma.comma))
 Base.size( comma::AbstractComma{T,U} ) where {T,U} = (length(comma.indices), size(comma.comma,2))
 
 Base.size( comma::AbstractComma{T,U}, i::Int ) where {T,U} = size(comma)[i]
@@ -127,31 +142,36 @@ Base.values( subcomma::AbstractComma{T,U} ) where {T,U} = getindex.( values( sub
 DataFrames.DataFrame( comma::AbstractComma{T,U} ) where {T,U} =
     DataFrame( Any[values(comma)...], [keys(comma)...] )
 
-function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},UnitRange{Int}}, kwargs... ) where {S,T,U}
-    n = size(comma,1)
-    @assert( comma.indices.start == 1 )
-    @assert( n == length(comma.comma[1]) )
-    ks = (T...,getindex.(kwargs, 1)...)
-    vs = (values(comma.comma)...,getindex.(kwargs, 2)...);
-    nt = NamedTuple{ks}( vs );
-    result = Comma( S, nt, 1:n );
-    return result
+function materialize( col::CommaColumn{T,U,V} ) where {T,U <: CommaColumn,V}
+    m = materialize( col.v )
+    return CommaColumn( m.v, m.indices[col.indices] )
 end
 
-materialize( col::CommaColumn{T,U,V} ) where {T,U,V} = 
-     CommaColumn( copy!( mmap( Mmap.Anonymous(), Vector{T}, length(col), 0 ), col ) )
+materialize( col::CommaColumn{T,U,V} ) where {T,U,V} = col
 
-function materialize( comma::AbstractComma{T,U} ) where {T,U}
-    # this might take a lot of memory; let's make sure we have it
-    GC.gc()
-    return Comma(NamedTuple{keys(comma)}(materialize.( getindex.( [comma], keys(comma) ) )))
+function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},W}, kv::Pair{Symbol, X} ) where {S,T,U,W,X <: AbstractVector}
+    indices = zeros( Int, length(comma.comma[1]) )
+    # must invert comma index
+    for i = 1:length(comma.indices)
+        indices[comma.indices[i]] = i
+    end
+    ks = (T...,kv[1])
+    vs = (values(comma.comma)..., CommaColumn( kv[2], indices ))
+    return Comma( S, NamedTuple{ks}( vs ), comma.indices )
 end
 
-Base.vcat( comma::AbstractComma{T,U}, kwargs... ) where {T,U} =
-    vcat( materialize( comma ), kwargs... )
+function materialize( comma::Comma{S,T,U,V,W} ) where {S,T,U,V,W}
+    m = materialize( comma.comma )
+    return Comma( S, m.comma, m.indices[comma.indices] )
+end
+
+materialize( comma::Comma{S,T,U,V,W} ) where {S,T,U,V <: NamedTuple{T,U},W} = comma
+
+Base.vcat( comma::Comma{S,T,U,V,W}, kv::Pair{Symbol,X} ) where {S,T,U,V,W,X <: AbstractVector} = 
+    vcat( materialize( comma ), kv )
 
 Base.getindex( comma::Comma{S,T,U,NamedTuple{T,U}}, columns::AbstractVector{Symbol} ) where {S,T,U} =
-    Comma( NamedTuple{(columns...,)}(getfield.( [comma.comma], columns )) )
+    Comma( NamedTuple{(columns...,)}(getfield.( [comma.comma], columns )), comma.indices )
 Base.getindex( comma::AbstractComma{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
     Comma( comma.comma[columns], comma.indices )
 
@@ -186,8 +206,6 @@ Base.length( col::CommaColumn{T,U,V} ) where {T,U,V} = length(col.indices)
 Base.size( col::CommaColumn{T,U,V} ) where {T,U,V} = (length(col),)
 
 function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol} ) where {S,T,U,V,W}
-    # materialize could take some memory so we should garbage collect first
-    GC.gc()
     vs = materialize.(getindex.( [comma], reverse(ks) ) )
     perm = 1:length(vs[1])
     for v in vs
