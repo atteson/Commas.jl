@@ -351,4 +351,6 @@ end
 Base.show( io::IO, df::Type{Comma{S,T,U,V,W}} ) where {S,T,U,V,W} = 
     print( io, "Comma{$S,...,$W}" )
 
+include("join.jl")
+
 end # module
