@@ -1,4 +1,4 @@
-export innerjoin
+export innerjoin, forwardjoin
 
 function innerjoinindices( vs1, vs2; printevery=Inf )
     indices = [Int[], Int[]]
@@ -40,44 +40,79 @@ function innerjoin(
     comma1::Comma{S1,T1,U1,V1,W1},
     cs1::Dict{Symbol,Symbol},
     comma2::Comma{S2,T2,U2,V2,W2},
-    cs2::Dict{Symbol,Symbol},
+    cs2::Dict{Symbol,Symbol};
+    printevery = Inf,
 ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2}
     vs1 = getindex.( (comma1,), S1 )
     vs2 = getindex.( (comma2,), S2 )
-    indices = innerjoinindices( vs1, vs2 )
+    indices = innerjoinindices( vs1, vs2, printevery=printevery )
 
     nt1 = NamedTuple{(values(cs1)...,)}( getindex.( getindex.( (comma1,), keys(cs1) ), (indices[1],) ) )
     nt2 = NamedTuple{(values(cs2)...,)}( getindex.( getindex.( (comma2,), keys(cs2) ), (indices[2],) ) )
     return Comma( merge( nt1, nt2 ) )
 end
 
-innerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2} ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
-    innerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ) )
+innerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
+    innerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
 
-function outerjoinindices( vs1, vs2; printevery=Inf )
-    cmps = Int[]
+function forwardjoin(
+    comma1::Comma{S1,T1,U1,V1,W1},
+    cs1::Dict{Symbol,Symbol},
+    comma2::Comma{S2,T2,U2,V2,W2},
+    cs2::Dict{Symbol,Symbol};
+    printevery = Inf,
+) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2}
     currindex = [1,1]
-    currvalues = [getindex.(vs1, currindex[1]), getindex.(vs2, currindex[2])]
+    currvalues = [comma1[currindex[1], S1], comma2[currindex[2], S2]]
+    record = false
     
-    n1 = length(vs1[1])
-    n2 = length(vs2[1])
-    while currindex[1] <= n1 && currindex[2] <= n2
-        push!( cmps, cmp( currvalues[1], currvalues[2] ) )
-        if cmps[end] <= 0
+    ns = [length(comma1[S1[1]]), length(comma2[S2[1]])]
+
+    result1 = getindex.( eltype.( getindex.( (comma1,), keys(cs1) ) ) )
+    result2 = getindex.( eltype.( getindex.( (comma2,), keys(cs2) ) ) )
+    while currindex[1] <= ns[1] && currindex[2] <= ns[2]
+        c = cmp( currvalues[1], currvalues[2] )
+        if c == 0
+            record = true
+        end
+        if record
+            push!.( result1, getindex.( (comma1,), (currindex[1] - (c > 0),), keys(cs1) ) )
+            push!.( result2, getindex.( (comma2,), (currindex[2] - (c < 0),), keys(cs2) ) )
+        end
+        if c <= 0 && currindex[1] <= ns[1]
             currindex[1] += 1
+            if currindex[1] <= ns[1]
+                currvalues[1] = comma1[currindex[1],S1]
+            end
             if currindex[1] % printevery == 0
                 println( "Done $(currindex[1]) of first vectors at $(now())" )
             end
         end
-        if cmps[end] >= 0
+        if c >= 0 && currindex[2] <= ns[2]
             currindex[2] += 1
+            if currindex[2] <= ns[2]
+                currvalues[2] = comma2[currindex[2],S2]
+            end
             if currindex[2] % printevery == 0
                 println( "Done $(currindex[2]) of second vectors at $(now())" )
             end
         end
     end
+    while currindex[1] <= ns[1]
+        push!.( result1, getindex.( (comma1,), (currindex[1],), keys(cs1) ) )
+        push!.( result2, getindex.( (comma2,), (currindex[2] - 1,), keys(cs2) ) )
+        currindex[1] += 1
+    end
+    while currindex[2] <= ns[2]
+        push!.( result1, getindex.( (comma1,), (currindex[1] - 1,), keys(cs1) ) )
+        push!.( result2, getindex.( (comma2,), (currindex[2],), keys(cs2) ) )
+        currindex[2] += 1
+    end
     
-    return cmps
-end
-                                                                              
-    
+    nt1 = NamedTuple{(values(cs1)...,)}( result1 )
+    nt2 = NamedTuple{(values(cs2)...,)}( result2 )
+    return Comma( merge( nt1, nt2 ) )
+end    
+
+forwardjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
+    forwardjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ), kwargs... )
