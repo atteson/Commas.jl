@@ -32,6 +32,11 @@ size(j2,1)
 j2 = forwardjoin( sort( c1[1:52], :a, :b ), sort( c2[1:100], :a, :b ) )
 size(j2,1)
 
+c1r = sort(c1[rand( 1:size(c1,1), 2 )], :a, :b )
+c2r = sort(c2[rand( 1:size(c2,1), 4 )], :a, :b )
+j3 = forwardjoin( c1r, c2r )
+
+
 comma1 = c1
 comma2 = c2
 cs1 = Dict([k => k for k in keys(c1)])
