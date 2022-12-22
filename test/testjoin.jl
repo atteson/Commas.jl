@@ -29,18 +29,16 @@ end
 
 j2 = outerjoin( c1, c2, defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0) )
 size(j2,1)
-j2 = forwardjoin( sort( c1[1:52], :a, :b ), sort( c2[1:100], :a, :b ) )
-size(j2,1)
 
 c1r = sort(c1[rand( 1:size(c1,1), 2 )], :a, :b )
 c2r = sort(c2[rand( 1:size(c2,1), 4 )], :a, :b )
-j3 = forwardjoin( c1r, c2r )
+j3 = outerjoin( c1r, c2r, defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0) )
 
-
-comma1 = c1
-comma2 = c2
-cs1 = Dict([k => k for k in keys(c1)])
-cs2 = Dict(:d => :d)
-sortcols(::Comma{S}) where {S} = S
-S1 = sortcols(c1)
-S2 = sortcols(c2)
+c1r = sort(c1[rand( 1:size(c1,1), 2 )], :a, :b )
+c2r = sort(c2[rand( 1:size(c2,1), 4 )], :a, :b )
+j3 = outerjoin(
+    c1r, Dict(:a => :a1, :b => :b1, :c => :c),
+    c2r, Dict(:a => :a2, :b => :b2, :d => :d),
+    defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0)
+)
+fillforward!( j3, [:a1, :b1], [:c], [:a2,:b2], [:d] )

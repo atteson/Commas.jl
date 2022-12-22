@@ -1,4 +1,4 @@
-export innerjoin, outerjoin
+export innerjoin, outerjoin, fillforward!
 
 function innerjoinindices( vs1, vs2; printevery=Inf )
     indices = [Int[], Int[]]
@@ -87,7 +87,7 @@ function outerjoin(
     ]
 
     while currindex[1] <= ns[1] && currindex[2] <= ns[2]
-        c = cmp( currvalues[1], currvalues[2] )
+        c = cmp( currvalues... )
         cs = [c <= 0, c >= 0]
         for i = 1:2
             if cs[i]
@@ -122,3 +122,30 @@ end
 
 outerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
     outerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
+
+function fillforward!(
+    comma::Comma{S,T,U,V,W},
+    s1::AbstractVector{Symbol},
+    m1::AbstractVector{Symbol},
+    s2::AbstractVector{Symbol},
+    m2::AbstractVector{Symbol},
+) where {S,T,U,V,W}
+    s = [s1, s2]
+    m = [[s1;m1], [s2;m2]]
+    startc = cmp( getindex.( (comma,), 1, s[1] ), getindex.( (comma,), 1, s[2] ) )
+    record = false
+    for i = 1:size(comma,1)
+        c = cmp( getindex.( (comma,), i, s[1] ), getindex.( (comma,), i, s[2] ) )
+        if c == 0 || c != startc
+            record = true
+        end
+        cs = [c <= 0, c >= 0]
+
+        for j = 1:2
+            if record && cs[j] && !cs[3-j]
+                setindex!.( (comma,), getindex.( (comma,), i-1, m[j] ), i, m[j] )
+            end
+        end
+    end
+    return comma
+end
