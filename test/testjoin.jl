@@ -27,7 +27,7 @@ for a in unique(c1[:a])
     end
 end
 
-j2 = forwardjoin( c1, c2 )
+j2 = outerjoin( c1, c2, defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0) )
 size(j2,1)
 j2 = forwardjoin( sort( c1[1:52], :a, :b ), sort( c2[1:100], :a, :b ) )
 size(j2,1)
