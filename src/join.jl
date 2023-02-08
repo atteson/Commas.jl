@@ -167,22 +167,33 @@ function fillforward!(
     s1::Union{AbstractVector{Symbol},NTuple{N,Symbol}},
     m1::Union{AbstractVector{Symbol},NTuple{N1,Symbol}},
     s2::Union{AbstractVector{Symbol},NTuple{N,Symbol}},
-    m2::Union{AbstractVector{Symbol},NTuple{N2,Symbol}},
+    m2::Union{AbstractVector{Symbol},NTuple{N2,Symbol}};
+    printevery = Inf,
 ) where {S,T,U,V,W,N,N1,N2}
+    s1 = (s1...,)
+    s2 = (s2...,)
     s = [s1, s2]
-    m = [[s1;m1], [s2;m2]]
+    m = [(s1...,m1...), (s2...,m2...)]
     startc = cmp( getindex.( (comma,), 1, s[1] ), getindex.( (comma,), 1, s[2] ) )
     record = false
+    printevery < Inf && println( "Starting at $(now())..." )
+
+    tc = (comma,)
     for i = 1:size(comma,1)
-        c = cmp( getindex.( (comma,), i, s[1] ), getindex.( (comma,), i, s[2] ) )
+        if i % printevery == 0
+            println( "Done $i at $(now())..." )
+        end
+        c = cmp( getindex.( tc, i, s[1] ), getindex.( tc, i, s[2] ) )
         if c == 0 || c != startc
             record = true
         end
-        cs = [c <= 0, c >= 0]
+        cs = (c <= 0, c >= 0)
 
         for j = 1:2
             if record && cs[j] && !cs[3-j]
-                setindex!.( (comma,), getindex.( (comma,), i-1, m[j] ), i, m[j] )
+                data = getindex.( tc, i-1, m[j] )
+                println( typeof(data) )
+                setindex!.( tc, data, i, m[j] )
             end
         end
     end
