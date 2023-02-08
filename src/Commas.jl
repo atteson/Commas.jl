@@ -10,7 +10,7 @@ include("sort.jl")
 
 import DataFrames: groupby
 
-export CharN, Comma, CommaColumn, groupby
+export CharN, Comma, CommaColumn, groupby, sortkeys
 
 abstract type AbstractComma{T,U}
 end
@@ -19,6 +19,8 @@ mutable struct Comma{S,T,U,V <: Union{NamedTuple{T,U},AbstractComma{T,U}},W <: A
     comma::V
     indices::W
 end
+
+sortkeys( ::Comma{S,T,U,V,W} ) where {S,T,U,V,W} = S
 
 Comma( comma::NamedTuple{T,U}, v::V = 1:length(comma[1]) ) where {T,U,V <: AbstractVector{Int}} =
     Comma{(),T,U,NamedTuple{T,U},V}( comma, v )
