@@ -204,6 +204,7 @@ function fillforwardindices(
     comma::Comma{S,T,U,V,W},
     defaults = Dict{Symbol,Any}(),
 ) where {S,T,U,V,W,N}
+    ks = 
     types = eltype.( getindex.( (comma,), symbols ) )
     defaults = get.( (defaults,), symbols, typedefault.( types ) )
 
