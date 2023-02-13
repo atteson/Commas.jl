@@ -55,47 +55,19 @@ end
 innerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
     innerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
 
-function outerjoinindices( vs1, vs2; printevery=Inf )
-    n = [length(vs1[1]), length(vs2[1])]
-    indices = fill.( 0, n )
-
-    currindex = [1,1]
-    currvalues = [getindex.(vs1, currindex[1]), getindex.(vs2, currindex[2])]
-    
-    index = 1
-    while currindex[1] <= n[1] && currindex[2] <= n[2]
-        c = cmp( currvalues... )
-        if c <= 0
-            indices[1][currindex[1]] = index
-            currindex[1] += 1
-            if currindex[1] <= n[1]
-                currvalues[1] = getindex.( vs1, currindex[1] )
-            end
-            if currindex[1] % printevery == 0
-                println( "Done $(currindex[1]) of first vectors at $(now())" )
-            end
+function outerjoinindices!( v1, i1, v2; printevery=Inf )
+    (n1, n2) = length.((v1, v2))
+    for j = 1:n1
+        i = i1[j]
+        if j > 1
+            i = max( i, i1[j-1] )
         end
-        if c >= 0
-            indices[2][currindex[2]] = index
-            currindex[2] += 1
-            if currindex[2] <= n[2]
-                currvalues[2] = getindex.( vs2, currindex[2] )
-            end
-            if currindex[2] % printevery == 0
-                println( "Done $(currindex[2]) of second vectors at $(now())" )
-            end
+        while i <= n2 && v1[j] > v2[i]
+            i += 1
         end
-        index += 1
+        i1[j] = i
     end
-    for i = 1:2
-        while currindex[i] <= n[i]
-            indices[i][currindex[i]] = index
-            currindex[i] += 1
-            index += 1
-        end
-    end
-    
-    return indices
+    return i1
 end
 
 typedefault( _ ) = nothing
