@@ -199,3 +199,30 @@ function fillforward!(
     end
     return comma
 end
+
+function fillforwardindices(
+    comma::Comma{S,T,U,V,W},
+    defaults = Dict{Symbol,Any}(),
+) where {S,T,U,V,W,N}
+    types = eltype.( getindex.( (comma,), symbols ) )
+    defaults = get.( (defaults,), symbols, typedefault.( types ) )
+
+    n = size(comma,1)
+    currfillfrom = 1
+    fillfrom = zeros(Int,n)
+    for i = 2:size(comma,1)
+        fill = false
+        for j in 1:length(symbols)
+            if comma[i,symbols[j]] == defaults[j]
+                fill = true
+                break
+            end
+        end
+        if fill
+            fillfrom[i] = currfillfrom
+        else
+            currfillfrom = i
+        end
+    end
+    return fillfrom
+end

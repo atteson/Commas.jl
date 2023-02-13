@@ -41,4 +41,3 @@ j3 = outerjoin(
     c2r, Dict(:a => :a2, :b => :b2, :d => :d),
     defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0)
 )
-fillforward!( j3, [:a1, :b1], [:c], [:a2,:b2], [:d] )
