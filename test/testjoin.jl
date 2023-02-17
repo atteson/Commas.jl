@@ -71,7 +71,7 @@ ihi = fill(m, n);
 @time outerjoinindices!( v1, ilo, ihi, v2 );
 
 function testoji( v1, i1, v2 )
-    good = i1 .<= length(v2)
+    good = (i1 .<= length(v2)) .& (i1 .> 0)
     @assert all(v1[good] .<= v2[i1[good]])
     good .&= i1 .> 1
     @assert all(v1[good] .> v2[i1[good].-1])
@@ -93,18 +93,24 @@ s1 = 1:n
 @time s1b = Commas.countingsortperm( s1, v1b );
 @time s1a = Commas.countingsortperm( s1b, v1a );
 
-[v1a[s1a] v1b[s1a]]
 unique(diff(v1a[s1a]))
 unique(diff(v1b[s1a]))
 
 s2 = 1:m
-s2b = Commas.countingsortperm( s2, v2b )
-s2a = Commas.countingsortperm( s2b, v2a )
+s2b = Commas.countingsortperm( s2, v2b );
+s2a = Commas.countingsortperm( s2b, v2a );
 
-i1 = ones(Int, n)
-@time outerjoinindices!( v1a[s1a], i1, v2a[s2a] );
-testoji( v1a[s1a], i1, v2a[s2a] )
-@time outerjoinindices!( v1b[s1a], i1, v2b[s2a] );
+ilo = fill(1, n);
+ihi = fill(m, n);
+@time outerjoinindices!( v1a[s1a], ilo, ihi, v2a[s2a] );
+testoji( v1a[s1a], ilo, v2a[s2a] )
+@time outerjoinindices!( v1a[s1a], ihi, ilo, v2a[s2a], d=-1 );
+testoji( -reverse(v1a[s1a]), m .- reverse(ilo) .+ 1, -reverse(v2a[s2a]) )
+v1 = -reverse(v1a[s1a])
+i1 = m .- reverse(ilo) .+ 1
+v2 = -reverse(v2a[s2a])
+
+@time outerjoinindices!( v1b[s1a], ilo, ihi, v2b[s2a] );
 testoji( v1a[s1a], i1, v2a[s2a] )
 
 v1 = v1a[s1a]
