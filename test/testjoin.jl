@@ -27,28 +27,8 @@ for a in unique(c1[:a])
     end
 end
 
-j2 = outerjoin( c1, c2, defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0) )
-size(j2,1)
 
-c1r = sort(c1[rand( 1:size(c1,1), 2 )], :a, :b )
-c2r = sort(c2[rand( 1:size(c2,1), 4 )], :a, :b )
-j3 = outerjoin( c1r, c2r, defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0) )
-
-c1r = sort(c1[rand( 1:size(c1,1), 2 )], :a, :b )
-c2r = sort(c2[rand( 1:size(c2,1), 4 )], :a, :b )
-j3 = outerjoin(
-    c1r, Dict(:a => :a1, :b => :b1, :c => :c),
-    c2r, Dict(:a => :a2, :b => :b2, :d => :d),
-    defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0)
-)
-
-
-n = 1_000
-m = 100
-v1 = sort(rand( 1:100, n ))
-v2 = sort(rand( 2:99, m ))
-
-function outerjoinindices!( v1, ilo, ihi, v2; d = 1 )
+function oldouterjoinindices!( v1, ilo, ihi, v2; d = 1 )
     (n1, n2) = length.((v1, v2))
     f = (3 - d) >> 1
     r = (d + 3) >> 1
@@ -66,9 +46,52 @@ function outerjoinindices!( v1, ilo, ihi, v2; d = 1 )
     end
     return ilo
 end
-ilo = ones(Int, n);
-ihi = fill(m, n);
-@time outerjoinindices!( v1, ilo, ihi, v2 );
+
+n = 1_000
+m = 100
+v1 = sort(rand( 1:100, n ))
+v2 = sort(rand( 2:99, m ))
+lo1 = ones(Int, n);
+hi1 = fill(m, n);
+lo2 = ones(Int, n);
+hi2 = fill(m, n);
+@time oldouterjoinindices!( v1, lo1, hi1, v2 );
+
+v = [v1,v2]
+lo = [lo1,lo2]
+hi = [hi1,hi2]
+d = 1
+
+function outerjoinindices!( v, lo, hi; d = 1 )
+    f = (3 - d) >> 1
+    r = (d + 3) >> 1
+
+    n = length.(v)
+    
+    (i, stop) = getindex.( [( [1,1], n )], (f,r) )
+    while all(d * i .<= d * stop)
+        equals = true
+        for j = 1:2
+            if hi[j][i[j]] <  i[3-j] || v[j][i[j]] < v[3-j][i[3-j]]
+                equals = false
+                lo[j][i[j]] = hi[j][i[j]] + 1
+                i[j] += 1
+                break
+            end
+        end
+        if equals
+            for j = 1:2
+                lo[j][i[3-j]] = hi[j][i[3-j]] = i[j]
+                i[j] += 1
+                while i[j] <= hi[j][i[j]] && v[j][i[j]] == v[j][i[j]-1]
+                    hi[j][i[3-j]] = i[j]
+                    i[j] += 1
+                end
+            end
+        end
+    end
+end
+
 
 function testoji( v1, i1, v2 )
     good = (i1 .<= length(v2)) .& (i1 .> 0)
@@ -104,14 +127,12 @@ ilo = fill(1, n);
 ihi = fill(m, n);
 @time outerjoinindices!( v1a[s1a], ilo, ihi, v2a[s2a] );
 testoji( v1a[s1a], ilo, v2a[s2a] )
+
 @time outerjoinindices!( v1a[s1a], ihi, ilo, v2a[s2a], d=-1 );
-testoji( -reverse(v1a[s1a]), m .- reverse(ilo) .+ 1, -reverse(v2a[s2a]) )
-v1 = -reverse(v1a[s1a])
-i1 = m .- reverse(ilo) .+ 1
-v2 = -reverse(v2a[s2a])
+testoji( -reverse(v1a[s1a]), m .- reverse(ihi) .+ 1, -reverse(v2a[s2a]) )
 
 @time outerjoinindices!( v1b[s1a], ilo, ihi, v2b[s2a] );
-testoji( v1a[s1a], i1, v2a[s2a] )
+testoji( v1a[s1a], ilo, v2a[s2a] )
 
 v1 = v1a[s1a]
 v2 = v2a[s2a]
@@ -119,3 +140,18 @@ v2 = v2a[s2a]
 good = i1 .<= length(v2a)
 @assert all(v1[good] .<= v2[i1[good]])
 
+
+j2 = outerjoin( c1, c2, defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0) )
+size(j2,1)
+
+c1r = sort(c1[rand( 1:size(c1,1), 2 )], :a, :b )
+c2r = sort(c2[rand( 1:size(c2,1), 4 )], :a, :b )
+j3 = outerjoin( c1r, c2r, defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0) )
+
+c1r = sort(c1[rand( 1:size(c1,1), 2 )], :a, :b )
+c2r = sort(c2[rand( 1:size(c2,1), 4 )], :a, :b )
+j3 = outerjoin(
+    c1r, Dict(:a => :a1, :b => :b1, :c => :c),
+    c2r, Dict(:a => :a2, :b => :b2, :d => :d),
+    defaults1 = Dict(:a=>0, :b=>0, :c=>0), defaults2 = Dict(:a=>0, :b=>0, :d=>0)
+)
