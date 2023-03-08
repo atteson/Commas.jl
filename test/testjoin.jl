@@ -70,6 +70,7 @@ function outerjoinindices!( v, lo, hi )
 end
 
 v = [[1, 1, 2, 3, 5], [1, 3, 7]]
+n = length.(v)
 lo = ones.(Int,n)
 hi = fill.(reverse(n),n)
 
