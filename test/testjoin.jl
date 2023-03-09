@@ -1,5 +1,6 @@
 using Commas
 using Random
+using GCTools
 
 Random.seed!(1)
 
@@ -32,9 +33,10 @@ function outerjoinindices!( v, lo, hi )
 
     # allocate now so we don't need to allocate in loop
     (i, first, last) = ([1,1], [1,1], [1,1])
-    while all(i .<= n)
+    while i[1] <= n[1] && i[2] <= n[2]
         equals = true
         for j = 1:2
+            
             if hi[j][i[j]] <  i[3-j] || v[j][i[j]] < v[3-j][i[3-j]]
                 equals = false
                 lo[j][i[j]] = i[3-j]
@@ -44,7 +46,9 @@ function outerjoinindices!( v, lo, hi )
             end
         end
         if equals
-            first[:] = last[:] = i[:]
+            for j = 1:2
+                first[j] = last[j] = i[j]
+            end
             for j = 1:2
                 i[j] += 1
                 while i[j] <= hi[3-j][first[3-j]] && v[j][i[j]] == v[j][i[j]-1]
