@@ -36,8 +36,7 @@ function outerjoinindices!( v, lo, hi )
     while i[1] <= n[1] && i[2] <= n[2]
         equals = true
         for j = 1:2
-            
-            if hi[j][i[j]] <  i[3-j] || v[j][i[j]] < v[3-j][i[3-j]]
+            if hi[j][i[j]] < i[3-j] || (lo[j][i[j]] <= i[3-j] && v[j][i[j]] < v[3-j][i[3-j]])
                 equals = false
                 lo[j][i[j]] = i[3-j]
                 hi[j][i[j]] = i[3-j] - 1
@@ -73,21 +72,26 @@ function outerjoinindices!( v, lo, hi )
     end
 end
 
+function testoji( v, lo, hi, lo1, hi1)
+    for j = 1:2
+        vs = getindex.( [v[3-j]], range.( lo1[j], hi1[j] ) )
+        rs = searchsorted.( vs, v[j] )
+        @assert( lo[j] == lo1[j] .- 1 .+ getfield.( rs, :start ) )
+        @assert( hi[j] == lo1[j] .- 1 .+ getfield.( rs, :stop ) )
+    end
+end
+
+function testoji( v, lo, hi )
+    n = length.(v)
+    testoji( v, lo, hi, ones.(Int, n), fill.(reverse(n), n) )
+end
+
 v = [[1, 1, 2, 3, 5], [1, 3, 7]]
 n = length.(v)
 lo = ones.(Int,n)
 hi = fill.(reverse(n),n)
 
 outerjoinindices!( v, lo, hi )
-
-function testoji( v, lo, hi )
-    for j = 1:2
-        rs = searchsorted.( [v[3-j]], v[j] )
-        @assert( lo[j] == getfield.( rs, :start ) )
-        @assert( hi[j] == getfield.( rs, :stop ) )
-    end
-end
-
 testoji( v, lo, hi )
 
 n = [1_000_000, 100]
@@ -111,3 +115,19 @@ hi = fill.(reverse(n), n)
 
 @time outerjoinindices!( v, lo, hi );
 @time testoji( v, lo, hi )
+
+v1 = [[1,1,1,1,2,4,5,5,5], [1,1,1,3,4,4,4,5]]
+v2 = [[1,1,2,3,1,2,1,2,3], [1,1,3,2,1,2,3,2]]
+n = length.(v1)
+@assert( length.(v2) == n )
+lo = fill.(1, n)
+hi = fill.(reverse(n), n)
+
+outerjoinindices!( v1, lo, hi )
+testoji( v1, lo, hi )
+
+lo1 = deepcopy(lo)
+hi1 = deepcopy(hi)
+
+outerjoinindices!( v2, lo, hi )
+testoji( v2, lo, hi, lo1, hi1 )
