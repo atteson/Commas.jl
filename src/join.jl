@@ -70,6 +70,50 @@ function outerjoinindices!( v1, i1, v2; printevery=Inf )
     return i1
 end
 
+function outerjoinindices!( v, lo, hi )
+    n = length.(v)
+
+    # allocate now so we don't need to allocate in loop
+    (i, first, last) = ([1,1], [1,1], [1,1])
+    while i[1] <= n[1] && i[2] <= n[2]
+        equals = true
+        for j = 1:2
+            if hi[j][i[j]] < i[3-j] || (lo[j][i[j]] <= i[3-j] && v[j][i[j]] < v[3-j][i[3-j]])
+                equals = false
+                lo[j][i[j]] = i[3-j]
+                hi[j][i[j]] = i[3-j] - 1
+                i[j] += 1
+                break
+            end
+        end
+        if equals
+            for j = 1:2
+                first[j] = last[j] = i[j]
+            end
+            for j = 1:2
+                i[j] += 1
+                while i[j] <= hi[3-j][first[3-j]] && v[j][i[j]] == v[j][i[j]-1]
+                    last[j] = i[j]
+                    i[j] += 1
+                end
+            end
+            for j = 1:2
+                for k = first[j]:last[j]
+                    lo[j][k] = first[3-j]
+                    hi[j][k] = last[3-j]
+                end
+            end
+        end
+    end
+    for j=1:2
+        while i[j] <= n[j]
+            lo[j][i[j]] = n[3-j] + 1
+            hi[j][i[j]] = n[3-j]
+            i[j] += 1
+        end
+    end
+end
+
 typedefault( _ ) = nothing
 typedefault( ::Type{Float64} ) = NaN
 typedefault( ::Type{Int64} ) = typemin(Int64)

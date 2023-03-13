@@ -1,6 +1,7 @@
 using Commas
 using Random
 using GCTools
+using Commas
 
 Random.seed!(1)
 
@@ -28,50 +29,6 @@ for a in unique(c1[:a])
     end
 end
 
-function outerjoinindices!( v, lo, hi )
-    n = length.(v)
-
-    # allocate now so we don't need to allocate in loop
-    (i, first, last) = ([1,1], [1,1], [1,1])
-    while i[1] <= n[1] && i[2] <= n[2]
-        equals = true
-        for j = 1:2
-            if hi[j][i[j]] < i[3-j] || (lo[j][i[j]] <= i[3-j] && v[j][i[j]] < v[3-j][i[3-j]])
-                equals = false
-                lo[j][i[j]] = i[3-j]
-                hi[j][i[j]] = i[3-j] - 1
-                i[j] += 1
-                break
-            end
-        end
-        if equals
-            for j = 1:2
-                first[j] = last[j] = i[j]
-            end
-            for j = 1:2
-                i[j] += 1
-                while i[j] <= hi[3-j][first[3-j]] && v[j][i[j]] == v[j][i[j]-1]
-                    last[j] = i[j]
-                    i[j] += 1
-                end
-            end
-            for j = 1:2
-                for k = first[j]:last[j]
-                    lo[j][k] = first[3-j]
-                    hi[j][k] = last[3-j]
-                end
-            end
-        end
-    end
-    for j=1:2
-        while i[j] <= n[j]
-            lo[j][i[j]] = n[3-j] + 1
-            hi[j][i[j]] = n[3-j]
-            i[j] += 1
-        end
-    end
-end
-
 function testoji( v, lo, hi, lo1, hi1)
     for j = 1:2
         vs = getindex.( [v[3-j]], range.( lo1[j], hi1[j] ) )
@@ -91,7 +48,7 @@ n = length.(v)
 lo = ones.(Int,n)
 hi = fill.(reverse(n),n)
 
-outerjoinindices!( v, lo, hi )
+Commas.outerjoinindices!( v, lo, hi )
 testoji( v, lo, hi )
 
 n = [1_000_000, 100]
@@ -99,21 +56,21 @@ v = sort.(rand.( range.(1,n), n ))
 lo = fill.(1, n)
 hi = fill.(reverse(n), n)
 
-@time outerjoinindices!( v, lo, hi );
+@time Commas.outerjoinindices!( v, lo, hi );
 @time testoji( v, lo, hi )
 
 v = sort.(rand.( [range.(1,n[1])], n ))
 lo = fill.(1, n)
 hi = fill.(reverse(n), n)
 
-@time outerjoinindices!( v, lo, hi );
+@time Commas.outerjoinindices!( v, lo, hi );
 @time testoji( v, lo, hi )
 
 v = sort.(rand.( [range.(1,n[2])], n ))
 lo = fill.(1, n)
 hi = fill.(reverse(n), n)
 
-@time outerjoinindices!( v, lo, hi );
+@time Commas.outerjoinindices!( v, lo, hi );
 @time testoji( v, lo, hi )
 
 v1 = [[1,1,1,1,2,4,5,5,5], [1,1,1,3,4,4,4,5]]
@@ -123,11 +80,40 @@ n = length.(v1)
 lo = fill.(1, n)
 hi = fill.(reverse(n), n)
 
-outerjoinindices!( v1, lo, hi )
+Commas.outerjoinindices!( v1, lo, hi )
 testoji( v1, lo, hi )
 
 lo1 = deepcopy(lo)
 hi1 = deepcopy(hi)
 
-outerjoinindices!( v2, lo, hi )
+Commas.outerjoinindices!( v2, lo, hi )
 testoji( v2, lo, hi, lo1, hi1 )
+
+n = [1_000_000, 1_000]
+v3 = rand.( [range.(1,n[1])], n );
+perms = Commas.countingsortperm.( range.(1, n), v3, UInt32 )
+v2 = rand.( [range.(1,n[1])], n );
+perms = Commas.countingsortperm.( perms, v2, UInt32 )
+v1 = rand.( [range.(1,n[1])], n );
+perms = Commas.countingsortperm.( perms, v1, UInt32 )
+lo = fill.(1, n)
+hi = fill.(reverse(n), n)
+
+lo1 = deepcopy(lo)
+hi1 = deepcopy(hi)
+v1 = getindex.( v1, perms )
+@time Commas.outerjoinindices!( v1, lo1, hi1 )
+@time testoji( v1, lo1, hi1 )
+
+lo2 = deepcopy(lo1)
+hi2 = deepcopy(hi1)
+v2 = getindex.( v2, perms )
+@time Commas.outerjoinindices!( v2, lo2, hi2 )
+@time testoji( v2, lo2, hi2, lo1, hi1 )
+
+lo3 = deepcopy(lo2)
+hi3 = deepcopy(hi2)
+v3 = getindex.( v3, perms )
+@time Commas.outerjoinindices!( v3, lo3, hi3 )
+@time testoji( v3, lo3, hi3, lo2, hi2 )
+
