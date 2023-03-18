@@ -207,11 +207,11 @@ Base.length( col::CommaColumn{T,U,V} ) where {T,U,V} = length(col.indices)
 
 Base.size( col::CommaColumn{T,U,V} ) where {T,U,V} = (length(col),)
 
-function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol} ) where {S,T,U,V,W}
+function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; type::Type{X} = UInt16 ) where {S,T,U,V,W,X}
     vs = materialize.(getindex.( [comma], reverse(ks) ) )
     perm = 1:length(vs[1])
     for v in vs
-        perm = countingsortperm( perm, v );
+        perm = countingsortperm( perm, v, type );
     end
     return Comma{ks,T,U,Comma{S,T,U,V,W},Vector{Int}}( comma, perm )
 end

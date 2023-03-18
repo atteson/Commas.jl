@@ -55,22 +55,7 @@ end
 innerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
     innerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
 
-function outerjoinindices!( v1, i1, v2; printevery=Inf )
-    (n1, n2) = length.((v1, v2))
-    for j = 1:n1
-        i = i1[j]
-        if j > 1
-            i = max( i, i1[j-1] )
-        end
-        while i <= n2 && v1[j] > v2[i]
-            i += 1
-        end
-        i1[j] = i
-    end
-    return i1
-end
-
-function outerjoinindices!( v, lo, hi )
+function align!( v, lo, hi )
     n = length.(v)
 
     # allocate now so we don't need to allocate in loop
@@ -114,6 +99,31 @@ function outerjoinindices!( v, lo, hi )
     end
 end
 
+function find_indices( lo, hi )
+    n = length.(lo)
+    indices = zeros.(Int,n)
+    in = [1,1]
+    out = 1
+    while in[1] <= n[1] || in[2] <= n[2]
+        for i = 1:2
+            if in[i] <= n[i]
+                if hi[i][in[i]] < in[3-i]
+                    indices[i][in[i]] = out
+                    in[i] += 1
+                    out += 1
+                elseif lo[i][in[i]] <= in[3-i]
+                    indices[i][in[i]] = out
+                    indices[3-i][in[3-i]] = out
+                    in[i] += 1
+                    in[3-i] += 1
+                    out += 1
+                end
+            end
+        end
+    end
+    return indices
+end
+
 typedefault( _ ) = nothing
 typedefault( ::Type{Float64} ) = NaN
 typedefault( ::Type{Int64} ) = typemin(Int64)
@@ -131,12 +141,16 @@ function outerjoin(
     printevery = Inf,
     stopat = Inf,
 ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2}
-    vs1 = getindex.( (comma1,), S1 )
-    vs2 = getindex.( (comma2,), S2 )
+    vs = collect(zip(getindex.( (comma1,), S1 ), getindex.( (comma2,), S2 )))
+    n = length.(vs[1])
     
     print && println( "Calculating indices at $(now())" )
 
-    indices = outerjoinindices( vs1, vs2, printevery=printevery )
+    lo = fill.( 1, n )
+    hi = fill.( reverse(n), n )
+    for v in vs
+        align!( v, lo, hi )
+    end
 
     ks = collect.([ keys( cs1 ), keys( cs2 ) ])
     types = [
@@ -149,6 +163,8 @@ function outerjoin(
     ]
     
     print && println( "Allocating results at $(now())" )
+
+    indices = find_indices( lo, hi )
 
     results = [fill.( defaults[i],  max(indices[1][end], indices[2][end])) for i in 1:2]
 
@@ -208,7 +224,6 @@ function fillforward!(
         for j = 1:2
             if record && cs[j] && !cs[3-j]
                 data = getindex.( tc, i-1, m[j] )
-                println( typeof(data) )
                 setindex!.( tc, data, i, m[j] )
             end
         end
