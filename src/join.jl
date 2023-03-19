@@ -124,6 +124,23 @@ function find_indices( lo, hi )
     return indices
 end
 
+function invert_indices( inindices )
+    n = max( inindices[1][end], inindices[2][end] )
+    outindices = zeros.( Int, (n,n) )
+    for i = 1:2
+        for j = 1:length(inindices[i])-1
+            for k = inindices[i][j]:inindices[i][j+1]-1
+                outindices[i][k] = j
+            end
+        end
+        m = length(inindices[i])
+        for k = inindices[i][end]:n
+            outindices[i][k] = m
+        end
+    end
+    return outindices
+end
+
 typedefault( _ ) = nothing
 typedefault( ::Type{Float64} ) = NaN
 typedefault( ::Type{Int64} ) = typemin(Int64)
@@ -140,6 +157,7 @@ function outerjoin(
     print = false,
     printevery = Inf,
     stopat = Inf,
+    fillforward = false,
 ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2}
     vs = collect(zip(getindex.( (comma1,), S1 ), getindex.( (comma2,), S2 )))
     n = length.(vs[1])
@@ -170,14 +188,21 @@ function outerjoin(
 
     commas = [comma1, comma2];
     css = [cs1, cs2]
+    if fillforward
+        outindices = invert_indices( indices )
+    end
     for i = 1:2
-        ii = indices[i]
+        ii = fillforward ? outindices[i] : indices[i]
         ki = ks[i]
         ri = results[i]
         ci = commas[i]
         for k = 1:length(ki)
             print && println( "Processing column $k or dataset $i at $(now())..." )
-            ri[k][ii] = ci[1:length(ii),ki[k]]
+            if fillforward
+                ri[k][:] = ci[ii,ki[k]]
+            else
+                ri[k][ii] = ci[1:length(ii),ki[k]]
+            end
         end
     end
     print && println( "Merging columns at $(now())" )
@@ -193,68 +218,3 @@ end
 
 outerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
     outerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
-
-function fillforward!(
-    comma::Comma{S,T,U,V,W},
-    s1::Union{AbstractVector{Symbol},NTuple{N,Symbol}},
-    m1::Union{AbstractVector{Symbol},NTuple{N1,Symbol}},
-    s2::Union{AbstractVector{Symbol},NTuple{N,Symbol}},
-    m2::Union{AbstractVector{Symbol},NTuple{N2,Symbol}};
-    printevery = Inf,
-) where {S,T,U,V,W,N,N1,N2}
-    s1 = (s1...,)
-    s2 = (s2...,)
-    s = [s1, s2]
-    m = [(s1...,m1...), (s2...,m2...)]
-    startc = cmp( getindex.( (comma,), 1, s[1] ), getindex.( (comma,), 1, s[2] ) )
-    record = false
-    printevery < Inf && println( "Starting at $(now())..." )
-
-    tc = (comma,)
-    for i = 1:size(comma,1)
-        if i % printevery == 0
-            println( "Done $i at $(now())..." )
-        end
-        c = cmp( getindex.( tc, i, s[1] ), getindex.( tc, i, s[2] ) )
-        if c == 0 || c != startc
-            record = true
-        end
-        cs = (c <= 0, c >= 0)
-
-        for j = 1:2
-            if record && cs[j] && !cs[3-j]
-                data = getindex.( tc, i-1, m[j] )
-                setindex!.( tc, data, i, m[j] )
-            end
-        end
-    end
-    return comma
-end
-
-function fillforwardindices(
-    comma::Comma{S,T,U,V,W},
-    defaults = Dict{Symbol,Any}(),
-) where {S,T,U,V,W,N}
-    ks = 
-    types = eltype.( getindex.( (comma,), symbols ) )
-    defaults = get.( (defaults,), symbols, typedefault.( types ) )
-
-    n = size(comma,1)
-    currfillfrom = 1
-    fillfrom = zeros(Int,n)
-    for i = 2:size(comma,1)
-        fill = false
-        for j in 1:length(symbols)
-            if comma[i,symbols[j]] == defaults[j]
-                fill = true
-                break
-            end
-        end
-        if fill
-            fillfrom[i] = currfillfrom
-        else
-            currfillfrom = i
-        end
-    end
-    return fillfrom
-end
