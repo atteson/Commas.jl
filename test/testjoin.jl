@@ -6,12 +6,12 @@ using Commas
 Random.seed!(1)
 
 n1 = 10_000
-c1 = Comma( (a=rand( 1:10, n1 ), b = rand( 2:20, n1 ), c = rand( 3:30, n1 )) )
-c1 = sort( c1, :a, :b )
+c1 = Comma( (a=rand( 1:10, n1 ), b = rand( 2:20, n1 ), c = rand( 3:30, n1 )) );
+c1 = sort( c1, :a, :b );
 
 n2 = 100_000
-c2 = Comma( (a=rand( 1:10, n2 ), b = rand( 2:20, n2 ), d = rand( 4:40, n2 )) )
-c2 = sort( c2, :a, :b )
+c2 = Comma( (a=rand( 1:10, n2 ), b = rand( 2:20, n2 ), d = rand( 4:40, n2 )) );
+c2 = sort( c2, :a, :b );
 
 j1 = innerjoin( c1, c2 )
 for c in keys(c1)
@@ -48,7 +48,7 @@ n = length.(v)
 lo = ones.(Int,n)
 hi = fill.(reverse(n),n)
 
-Commas.align!( v, lo, hi )
+Commas.align!( v, lo, hi );
 testoji( v, lo, hi )
 
 n = [1_000_000, 100]
@@ -145,37 +145,42 @@ v3 = getindex.( v3, perms )
 @time Commas.align!( v3, lo3, hi3 )
 @time testoji( v3, lo3, hi3, lo2, hi2 )
 
-@time indices = Commas.find_indices( lo3, hi3 )
-
-function test( inindices )
-    n = max( inindices[1][end], inindices[2][end] )
-    outindices = zeros.( Int, (n,n) )
-    for i = 1:2
-        for j = 1:length(inindices[i])-1
-            for k = inindices[i][j]:inindices[i][j+1]-1
-                outindices[i][k] = j
-            end
-        end
-        m = length(inindices[i])
-        for k = inindices[i][end]:n
-            outindices[i][k] = m
-        end
-    end
-    return outindices
-end
-
-
-@time x = test( indices );
-
-comma1 = sort( Comma( (a = v1[1], b=v2[1], c=v3[1]) ), :a, :b, :c, type=UInt32 )
+comma1 = sort( Comma( (a = v1[1], b=v2[1], c=v3[1]) ), :a, :b, :c, type=UInt32 );
 S1 = sortkeys( comma1 )
 cs1 = Dict( zip( S1, [Symbol(string(s)*"1") for s in S1] ) )
 defaults1 = Dict{Symbol,Any}()
-comma2 = sort( Comma( (a = v1[2], b=v2[2], c=v3[2]) ), :a, :b, :c, type=UInt32 )
+comma2 = sort( Comma( (a = v1[2], b=v2[2], c=v3[2]) ), :a, :b, :c, type=UInt32 );
 S2 = sortkeys( comma2 )
 cs2 = Dict( zip( S1, [Symbol(string(s)*"2") for s in S2] ) )
 defaults2 = Dict{Symbol,Any}()
 
 @time comma = outerjoin( comma1, cs1, comma2, cs2 );
+
+@time comma = outerjoin( comma1, cs1, comma2, cs2, fillforward=true );
+
+
+n = [100, 100]
+v3 = rand.( [1:10], n );
+perms = Commas.countingsortperm.( range.(1, n), v3 )
+v2 = rand.( [1:10], n );
+perms = Commas.countingsortperm.( perms, v2 )
+v1 = rand.( [1:10], n );
+perms = Commas.countingsortperm.( perms, v1, UInt32 )
+v1 = getindex.( v1, perms )
+v2 = getindex.( v2, perms )
+v3 = getindex.( v3, perms )
+
+comma1 = sort( Comma( (a = v1[1], b=v2[1], c=v3[1]) ), :a, :b, :c, type=UInt32 );
+S1 = sortkeys( comma1 )
+cs1 = Dict( zip( S1, [Symbol(string(s)*"1") for s in S1] ) )
+defaults1 = Dict{Symbol,Any}()
+comma2 = sort( Comma( (a = v1[2], b=v2[2], c=v3[2]) ), :a, :b, :c, type=UInt32 );
+S2 = sortkeys( comma2 )
+cs2 = Dict( zip( S1, [Symbol(string(s)*"2") for s in S2] ) )
+defaults2 = Dict{Symbol,Any}()
+
+@time comma = outerjoin( comma1, cs1, comma2, cs2 );
+
+@time comma = outerjoin( comma1, cs1, comma2, cs2, fillforward=true );
 
 

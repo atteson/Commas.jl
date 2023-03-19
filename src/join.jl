@@ -192,14 +192,20 @@ function outerjoin(
         outindices = invert_indices( indices )
     end
     for i = 1:2
-        ii = fillforward ? outindices[i] : indices[i]
+        if fillforward
+            ii = outindices[i]
+            r = findfirst(ii.!=0):length(ii)
+            ii = ii[r]
+        else
+            ii = indices[i]
+        end
         ki = ks[i]
         ri = results[i]
         ci = commas[i]
         for k = 1:length(ki)
             print && println( "Processing column $k or dataset $i at $(now())..." )
             if fillforward
-                ri[k][:] = ci[ii,ki[k]]
+                ri[k][r] = ci[ii,ki[k]]
             else
                 ri[k][ii] = ci[1:length(ii),ki[k]]
             end
