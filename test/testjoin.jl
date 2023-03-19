@@ -235,3 +235,4 @@ end
 
 cs = [true, true]
 @time compare!( comma, 1, s1, s2, cs )
+@code_warntype compare!( comma, 1, s1, s2, cs )
