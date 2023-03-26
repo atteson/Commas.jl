@@ -159,21 +159,24 @@ function outerjoin(
     stopat = Inf,
     fillforward = false,
 ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2}
-    vs = collect(zip(getindex.( (comma1,), S1 ), getindex.( (comma2,), S2 )))
+    print && println( "Materializing at $(now())" )
+    commas = materialize.([comma1, comma2]);
+    vs = collect(zip([getindex.( (commas[i],), [S1,S2][i] )  for i in 1:2]...))
     n = length.(vs[1])
     
     print && println( "Calculating indices at $(now())" )
 
     lo = fill.( 1, n )
     hi = fill.( reverse(n), n )
+    
     for v in vs
         align!( v, lo, hi )
     end
 
     ks = collect.([ keys( cs1 ), keys( cs2 ) ])
     types = [
-        eltype.( getindex.( (comma1,), ks[1] ) ),
-        eltype.( getindex.( (comma2,), ks[2] ) ),
+        eltype.( getindex.( (commas[1],), ks[1] ) ),
+        eltype.( getindex.( (commas[2],), ks[2] ) ),
     ]
     defaults = [
         get.( (defaults1,), ks[1], typedefault.( types[1] ) ),
@@ -186,7 +189,6 @@ function outerjoin(
 
     results = [fill.( defaults[i],  max(indices[1][end], indices[2][end])) for i in 1:2]
 
-    commas = [comma1, comma2];
     css = [cs1, cs2]
     if fillforward
         outindices = invert_indices( indices )
@@ -203,7 +205,7 @@ function outerjoin(
         ri = results[i]
         ci = commas[i]
         for k = 1:length(ki)
-            print && println( "Processing column $k or dataset $i at $(now())..." )
+            print && println( "Processing column $k of dataset $i at $(now())..." )
             if fillforward
                 ri[k][r] = ci[ii,ki[k]]
             else
@@ -218,7 +220,7 @@ function outerjoin(
     for i = 1:2
         push!( nts, NamedTuple{(vs[i]...,)}( results[i] ) )
     end
-    
+
     return Comma( merge( nts... ) )
 end    
 

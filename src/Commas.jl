@@ -144,33 +144,32 @@ Base.values( subcomma::AbstractComma{T,U} ) where {T,U} = getindex.( values( sub
 DataFrames.DataFrame( comma::AbstractComma{T,U} ) where {T,U} =
     DataFrame( Any[values(comma)...], [keys(comma)...] )
 
+materialize( col::CommaColumn{T,Vector{T},UnitRange{Int}} ) where {T} = col
+
 function materialize( col::CommaColumn{T,U,V} ) where {T,U <: CommaColumn,V}
     m = materialize( col.v )
     return CommaColumn( m.v, m.indices[col.indices] )
 end
 
-materialize( col::CommaColumn{T,U,V} ) where {T,U,V} = col
+materialize( col::AbstractVector ) = CommaColumn( col.v[col.indices], 1:length(col.indices) ) 
 
-function Base.vcat( comma::Comma{S,T,U,NamedTuple{T,U},W}, kv::Pair{Symbol, X} ) where {S,T,U,W,X <: AbstractVector}
-    indices = zeros( Int, length(comma.comma[1]) )
-    # must invert comma index
-    for i = 1:length(comma.indices)
-        indices[comma.indices[i]] = i
-    end
+function Base.vcat( comma::Comma{S,T,U,V,W}, kv::Pair{Symbol, X} ) where {S,T,U,V,W,X <: AbstractVector}
+    comma = materialize( comma )
     ks = (T...,kv[1])
-    vs = (values(comma.comma)..., CommaColumn( kv[2], indices ))
+    vs = (values(comma.comma)..., CommaColumn( kv[2], 1:size(comma,1) ))
     return Comma( S, NamedTuple{ks}( vs ), comma.indices )
 end
 
 function materialize( comma::Comma{S,T,U,V,W} ) where {S,T,U,V,W}
-    m = materialize( comma.comma )
-    return Comma( S, m.comma, m.indices[comma.indices] )
+    n = length(comma.indices)
+    r = 1:n
+    vs = []
+    for i in 1:length(T)
+        c = materialize( comma[T[i]] )
+        push!( vs, c.v )
+    end
+    return Comma( S, NamedTuple{T}( vs ), 1:n )
 end
-
-materialize( comma::Comma{S,T,U,V,W} ) where {S,T,U,V <: NamedTuple{T,U},W} = comma
-
-Base.vcat( comma::Comma{S,T,U,V,W}, kv::Pair{Symbol,X} ) where {S,T,U,V,W,X <: AbstractVector} = 
-    vcat( materialize( comma ), kv )
 
 Base.getindex( comma::Comma{S,T,U,NamedTuple{T,U}}, columns::AbstractVector{Symbol} ) where {S,T,U} =
     Comma( NamedTuple{(columns...,)}(getfield.( [comma.comma], columns )), comma.indices )
