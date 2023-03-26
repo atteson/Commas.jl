@@ -148,7 +148,7 @@ materialize( col::CommaColumn{T,Vector{T},UnitRange{Int}} ) where {T} = col
 
 function materialize( col::CommaColumn{T,U,V} ) where {T,U <: CommaColumn,V}
     m = materialize( col.v )
-    return CommaColumn( m.v, m.indices[col.indices] )
+    return CommaColumn( m.v[col.indices], 1:length(col.indices) )
 end
 
 materialize( col::AbstractVector ) = CommaColumn( col.v[col.indices], 1:length(col.indices) ) 
@@ -162,7 +162,6 @@ end
 
 function materialize( comma::Comma{S,T,U,V,W} ) where {S,T,U,V,W}
     n = length(comma.indices)
-    r = 1:n
     vs = []
     for i in 1:length(T)
         c = materialize( comma[T[i]] )
