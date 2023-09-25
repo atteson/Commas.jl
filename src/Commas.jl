@@ -5,6 +5,7 @@ using Mmap
 using Formatting
 using DataFrames
 using ZippedArrays
+using MissingTypes
 
 include("sort.jl")
 
@@ -50,6 +51,7 @@ CommaColumn( v::AbstractVector, indices::V = 1:length(v) ) where {V} = CommaColu
 
 # required transformations to move from 0.6 to 1.0
 transformtypes = Dict(
+    "Dates.Date" => "Commas.Dates.Date",
     "Date" => "Commas.Dates.Date",
     "DateTime" => "Commas.Dates.DateTime",
     "Base.Dates.Time" => "Commas.Dates.Time",
@@ -58,7 +60,7 @@ transformtypes = Dict(
 Base.write( io::IO, v::Base.ReinterpretArray{T,U,V,W} ) where {T,U,V,W} =
     write( io, reinterpret( V, v ) )
 
-function Base.write( filename::String, data::CommaColumn{T,U,V}; append::Bool = false, buffersize=2^20 ) where {T,U,V}
+function Base.write( filename::AbstractString, data::CommaColumn{T,U,V}; append::Bool = false, buffersize=2^20 ) where {T,U,V}
     io = open( joinpath( filename * "_$T" ), write=true, append=append )
     
     n = length(data)
@@ -86,6 +88,9 @@ function Base.write( filename::String, data::CommaColumn{T,U,V}; append::Bool = 
     return nb
 end
 
+Base.write( filename::AbstractString, v::CommaColumn{Union{Missing,T},U,V} ) where {T,U <: AbstractVector{Union{Missing,T}},V} =
+    write( filename, CommaColumn(convert( Vector{MissingType{T}}, v.v )) )
+
 function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
     filesize = stat( filename ).size
     n = sizeof(T) == 0 ? 0 : Int(filesize/sizeof(T))
@@ -108,7 +113,7 @@ end
 
 function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf )
     names = readdir( dir )
-    matches = match.( r"^(.*)_([A-z0-9,{} ]*)$", names )
+    matches = match.( r"^(.*)_([A-z0-9,{}\. ]*)$", names )
     if any( matches .== nothing )
         error( "Couldn't work out type(s) of:\n" * join( joinpath.( dir, names[matches.==nothing] ), "\n" ) * "\n" )
     end
