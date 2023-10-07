@@ -6,6 +6,7 @@ using Formatting
 using DataFrames
 using ZippedArrays
 using MissingTypes
+using SentinelArrays
 
 include("sort.jl")
 
@@ -88,8 +89,12 @@ function Base.write( filename::AbstractString, data::CommaColumn{T,U,V}; append:
     return nb
 end
 
-Base.write( filename::AbstractString, v::CommaColumn{Union{Missing,T},U,V} ) where {T,U <: AbstractVector{Union{Missing,T}},V} =
-    write( filename, CommaColumn(convert( Vector{MissingType{T}}, v.v )) )
+Base.write( filename::AbstractString, v::CommaColumn{Union{Missing,T},U,V}; append::Bool=false ) where {T,U <: AbstractVector{Union{Missing,T}},V} =
+    write( filename, CommaColumn(convert( Vector{MissingType{T}}, v.v )), append=append )
+
+# can't determine the type of these...
+function Base.write( filename::AbstractString, v::CommaColumn{T,MissingVector,U}; append::Bool=false ) where {T,U}
+end
 
 function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
     filesize = stat( filename ).size
@@ -107,7 +112,8 @@ Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
 function Base.write( dir::String, data::AbstractComma{T,U}; append::Bool = false ) where {T,U}
     mkpath( dir )
     for name in names(data)
-        write( joinpath( dir, name ), data[name] )
+        col = data[name]
+        write( joinpath( dir, name ), col, append=append )
     end
 end
 
@@ -306,12 +312,12 @@ function Base.show(
             end
             
             
-            collength = maximum(length.(colstrings)) + 1
+            collength = min( maximum(length.(colstrings)) + 1, termwidth - totallength )
             totallength += collength
-            totallength > termwidth && break
             
-            colstrings = align( col[1] ).( colstrings, collength - 1 ) .* " "
+            colstrings = getindex.( align( col[1] ).( colstrings, collength - 1 ) .* " ", [1:collength - 1] )
             push!( columns, colstrings )
+            totallength >= termwidth && break
         end
     end
     print( io, join( .*( columns... ), '\n' ) )
@@ -322,6 +328,9 @@ const CharN{N} = NTuple{N,UInt8}
 Base.convert( ::Type{CharN{N}}, x::AbstractString ) where {N} = convert( CharN{N}, (rpad(x,N)...,) )
 
 Base.convert( ::Type{String}, x::CharN{N} ) where {N} = strip(String([x...]))
+
+Base.:(==)( s1::CharN{N}, s2::String ) where {N} = length(s2) > N ? false : convert( CharN{N}, s2 ) == s1
+Base.:(==)( s1::String, s2::CharN{N} ) where {N} = length(s1) > N ? false : convert( CharN{N}, s1 ) == s2
 
 # This data structure doesn't support strings so this is the alternative for now
 Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String(UInt8[tuple...]) )
