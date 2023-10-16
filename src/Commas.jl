@@ -92,6 +92,7 @@ end
 Base.write( filename::AbstractString, v::CommaColumn{Union{Missing,T},U,V}; append::Bool=false ) where {T,U <: AbstractVector{Union{Missing,T}},V} =
     write( filename, CommaColumn(convert( Vector{MissingType{T}}, v.v )), append=append )
 
+# julia doesn't do well with MissingType{CharN{N}} for large N (seems to be LLVM-related) so let's just skip the MissingType for strings
 function Base.write(
     filename::AbstractString,
     v::CommaColumn{Union{Missing,T},U,V}; append::Bool=false,
@@ -99,7 +100,7 @@ function Base.write(
     missings = ismissing.(v.v)
     N = reduce(max, length.(v.v[.!missings]), init=0)
     if N > 0
-        w = MissingType{CharN{N}}.( convert.( CharN{N}, ifelse.( missings, "", v.v ) ) )
+        w = convert.( CharN{N}, ifelse.( missings, "", v.v ) )
         write( filename, CommaColumn(w) )
     end
 end
@@ -294,7 +295,8 @@ format( x::Integer ) = string(x)
 
 align( d::Dates.TimeType ) = rpad
 align( x::Number ) = lpad
-align( c::NTuple{N,UInt8} where {N} ) = rpad
+align( c::NTuple{N,UInt8} ) where N = rpad
+align( x::MissingType{T} ) where T = align( x.x )
 
 function Base.show(
     io::IO,
