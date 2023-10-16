@@ -92,8 +92,16 @@ end
 Base.write( filename::AbstractString, v::CommaColumn{Union{Missing,T},U,V}; append::Bool=false ) where {T,U <: AbstractVector{Union{Missing,T}},V} =
     write( filename, CommaColumn(convert( Vector{MissingType{T}}, v.v )), append=append )
 
-# can't determine the type of these...
-function Base.write( filename::AbstractString, v::CommaColumn{T,MissingVector,U}; append::Bool=false ) where {T,U}
+function Base.write(
+    filename::AbstractString,
+    v::CommaColumn{Union{Missing,T},U,V}; append::Bool=false,
+) where {T <: AbstractString, U <: AbstractVector{Union{Missing,T}},V}
+    missings = ismissing.(v.v)
+    N = reduce(max, length.(v.v[.!missings]), init=0)
+    if N > 0
+        w = MissingType{CharN{N}}.( convert.( CharN{N}, ifelse.( missings, "", v.v ) ) )
+        write( filename, CommaColumn(w) )
+    end
 end
 
 function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
@@ -311,11 +319,10 @@ function Base.show(
                 colstrings = [colstrings; "..."; bottom]
             end
             
-            
             collength = min( maximum(length.(colstrings)) + 1, termwidth - totallength )
             totallength += collength
             
-            colstrings = getindex.( align( col[1] ).( colstrings, collength - 1 ) .* " ", [1:collength - 1] )
+            colstrings = getindex.( align( col[1] ).( colstrings, collength - 1 ), [1:collength-1] ) .* " "
             push!( columns, colstrings )
             totallength >= termwidth && break
         end
@@ -325,7 +332,7 @@ end
 
 const CharN{N} = NTuple{N,UInt8}
 
-Base.convert( ::Type{CharN{N}}, x::AbstractString ) where {N} = convert( CharN{N}, (rpad(x,N)...,) )
+Base.convert( ::Type{CharN{N}}, x::AbstractString ) where {N} = convert( CharN{N}, (x*' '^(N-length(x))...,) )
 
 Base.convert( ::Type{String}, x::CharN{N} ) where {N} = strip(String([x...]))
 

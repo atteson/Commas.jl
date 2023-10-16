@@ -146,6 +146,7 @@ typedefault( ::Type{Float64} ) = NaN
 typedefault( ::Type{Int64} ) = typemin(Int64)
 typedefault( ::Type{Date} ) = Date( 0 )
 typedefault( ::Type{Bool} ) = false
+typedefault( ::Type{CharN{N}} ) where N = convert( CharN{N}, "" )
 
 function outerjoin(
     comma1::Comma{S1,T1,U1,V1,W1},
