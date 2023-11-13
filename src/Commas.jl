@@ -42,13 +42,13 @@ struct CommaColumn{T,U<:AbstractVector{T},V<:AbstractVector{Int}} <: AbstractVec
     indices::V
 end
 
+CommaColumn( v::AbstractVector, indices::V = 1:length(v) ) where {V} = CommaColumn( v, indices )
+
 Base.length( col::CommaColumn ) = length(col.indices)
 Base.size( col::CommaColumn ) = (length(col),)
 Base.getindex( col::CommaColumn, i::Int ) = col.v[col.indices[i]]
 
 Base.getindex( comma::Comma, column::Symbol ) = CommaColumn( comma.comma[column], comma.indices )
-
-CommaColumn( v::AbstractVector, indices::V = 1:length(v) ) where {V} = CommaColumn( v, indices )
 
 # required transformations to move from 0.6 to 1.0
 transformtypes = Dict(
