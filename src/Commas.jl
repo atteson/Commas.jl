@@ -12,7 +12,7 @@ include("sort.jl")
 
 import DataFrames: groupby
 
-export CharN, Comma, CommaColumn, groupby, sortkeys
+export CharN, Comma, CommaColumn, groupby, sortkeys, combine
 
 abstract type AbstractComma{T,U}
 end
@@ -280,6 +280,22 @@ function Base.iterate( groups::Groups, i::Int = 1 )
     end
 end
         
+function combine( f::Function, groups::Groups{S,T,U,V,W} ) where {S,T,U,V,W}
+    group = first( groups )
+    ks = keys(group)
+    cols = [eltype(group[k])[] for k in ks]
+    for group in groups
+        output = f( group )
+        n = size(output, 1)
+        for i = 1:length(ks)
+            for j = 1:n
+                push!( cols[i], output[ks[i]][j] )
+            end
+        end
+    end
+    return Comma( NamedTuple{ks}( cols ) )
+end
+
 formats = Dict(
     Dates.Date => DateFormat( "mm/dd/yyyy" ),
     Dates.Time => DateFormat( "HH:MM:SS.sss" ),
