@@ -280,7 +280,7 @@ function Base.iterate( groups::Groups, i::Int = 1 )
     end
 end
         
-function combine( f::Function, groups::Groups{S,T,U,V,W} ) where {S,T,U,V,W}
+function DataFrames.combine( f::Function, groups::Groups{S,T,U,V,W} ) where {S,T,U,V,W}
     group = first( groups )
     ks = keys(group)
     cols = [eltype(group[k])[] for k in ks]
