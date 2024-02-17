@@ -147,7 +147,7 @@ typedefault( ::Type{Int64} ) = typemin(Int64)
 typedefault( ::Type{Date} ) = Date( 0 )
 typedefault( ::Type{Bool} ) = false
 typedefault( ::Type{CharN{N}} ) where N = convert( CharN{N}, "" )
-typedefault( ::Type{MissingType{T}} ) where T = MissingType{T}( typedefault( T ) )
+typedefault( ::Type{MissingType{T}} ) where T = convert( MissingType{T}, missing )
 
 function outerjoin(
     comma1::Comma{S1,T1,U1,V1,W1},
@@ -156,17 +156,16 @@ function outerjoin(
     cs2::Dict{Symbol,Symbol};
     defaults1 = Dict{Symbol,Any}(),
     defaults2 = Dict{Symbol,Any}(),
-    print = false,
     printevery = Inf,
     stopat = Inf,
     fillforward = false,
 ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2}
-    print && println( "Materializing at $(now())" )
+    (printevery < Inf) && println( "Materializing at $(now())" )
     commas = materialize.([comma1, comma2]);
     vs = collect(zip([getindex.( (commas[i],), [S1,S2][i] )  for i in 1:2]...))
     n = length.(vs[1])
     
-    print && println( "Calculating indices at $(now())" )
+    (printevery < Inf) && println( "Calculating indices at $(now())" )
 
     lo = fill.( 1, n )
     hi = fill.( reverse(n), n )
@@ -185,7 +184,7 @@ function outerjoin(
         get.( (defaults2,), ks[2], typedefault.( types[2] ) ),
     ]
     
-    print && println( "Allocating results at $(now())" )
+    (printevery < Inf) && println( "Allocating results at $(now())" )
 
     indices = find_indices( lo, hi )
 
@@ -207,7 +206,7 @@ function outerjoin(
         ri = results[i]
         ci = commas[i]
         for k = 1:length(ki)
-            print && println( "Processing column $k of dataset $i at $(now())..." )
+            (printevery < Inf) && println( "Processing column $k of dataset $i at $(now())..." )
             if fillforward
                 ri[k][r] = ci[ii,ki[k]]
             else
@@ -215,7 +214,7 @@ function outerjoin(
             end
         end
     end
-    print && println( "Merging columns at $(now())" )
+    (printevery < Inf) && println( "Merging columns at $(now())" )
     
     vs = [ values( cs1 ), values( cs2 ) ]
     nts = []
