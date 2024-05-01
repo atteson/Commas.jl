@@ -48,7 +48,11 @@ Base.length( col::CommaColumn ) = length(col.indices)
 Base.size( col::CommaColumn ) = (length(col),)
 Base.getindex( col::CommaColumn, i::Int ) = col.v[col.indices[i]]
 
-Base.getindex( comma::Comma, column::Symbol ) = CommaColumn( comma.comma[column], comma.indices )
+function Base.setindex!( col::CommaColumn, v, i::Int )
+    col.v[col.indices[i]] = v
+end
+
+Base.getindex( comma::Comma{S,T,U,V,W}, column::Symbol ) where {S,T,U,V,W} = CommaColumn( comma.comma[column], comma.indices )
 
 # required transformations to move from 0.6 to 1.0
 transformtypes = Dict(
@@ -110,6 +114,20 @@ function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
     n = sizeof(T) == 0 ? 0 : Int(filesize/sizeof(T))
         
     return CommaColumn( Mmap.mmap( filename, Vector{T}, n ), 1:n )
+end
+
+function Base.resize!( comma::Comma{S,T,U,NamedTuple{T,U}}, n1::Int ) where {S,T,U}
+    n0 = size( comma, 1 )
+    push!.( [comma.indices], collect(n0+1:n1) )
+    for k in keys(comma)
+        resize!( comma.comma[k], n1 )
+    end
+end
+
+function Base.resize!( comma::Comma, n1::Int )
+    n0 = length(comma.comma.indices)
+    push!.( comma.indices, n0+1:n1 )
+    resize!( comma, n1 )
 end
 
 Base.names( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(keys(comma.comma))
@@ -195,7 +213,7 @@ Base.getindex( comma::Comma{S,T,U,NamedTuple{T,U}}, columns::AbstractVector{Symb
 Base.getindex( comma::AbstractComma{T,U}, columns::AbstractVector{Symbol} ) where {T,U} =
     Comma( comma.comma[columns], comma.indices )
 
-Base.getindex( comma::AbstractComma{T,U}, i::Int, column::Symbol ) where {T,U} = comma.comma[column][comma.indices[i]]
+Base.getindex( comma::AbstractComma{T,U}, i::Int, column::V ) where {T,U,V} = comma.comma[column][comma.indices[i]]
 Base.getindex( comma::AbstractComma{T,U}, i::Int, column::String ) where {T,U} = comma[i,Symbol(column)]
 
 Base.setindex!( comma::AbstractComma{T,U}, v::V, i::Int, column::Symbol ) where {T,U,V} = comma.comma[column][comma.indices[i]] = v
