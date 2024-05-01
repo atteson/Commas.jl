@@ -116,20 +116,6 @@ function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
     return CommaColumn( Mmap.mmap( filename, Vector{T}, n ), 1:n )
 end
 
-function Base.resize!( comma::Comma{S,T,U,NamedTuple{T,U}}, n1::Int ) where {S,T,U}
-    n0 = size( comma, 1 )
-    push!.( [comma.indices], collect(n0+1:n1) )
-    for k in keys(comma)
-        resize!( comma.comma[k], n1 )
-    end
-end
-
-function Base.resize!( comma::Comma, n1::Int )
-    n0 = length(comma.comma.indices)
-    push!.( comma.indices, n0+1:n1 )
-    resize!( comma, n1 )
-end
-
 Base.names( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(keys(comma.comma))
 Base.names( comma::Comma ) = names(comma.comma)
 
