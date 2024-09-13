@@ -1,7 +1,9 @@
 
 using StringViews
 
-struct VariableLengthStringVector <: AbstractVector{StringViews.StringView{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}}
+const StringType = StringViews.StringView{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}
+
+struct VariableLengthStringVector <: AbstractVector{StringType}
     data::Vector{UInt8}
     indices::Vector{Int}
 end
@@ -23,28 +25,34 @@ function VariableLengthStringVector( vs::Vector{String} )
     return VariableLengthStringVector( data, [0; cumlens] )
 end
 
+CommaColumn( v::VariableLengthStringVector, indices::V = 1:length(v) ) where {V <: AbstractVector{Int}} =
+    CommaColumn{StringType,VariableLengthStringVector,V}( v, indices )
+
 Base.getindex( s::VariableLengthStringVector, i::Int ) = StringView( view( s.data, s.indices[i]+1:s.indices[i+1] ) )
 
 Base.size( s::VariableLengthStringVector ) = (length(s.indices)-1,)
 
 Base.IndexStyle( ::Type{VariableLengthStringVector} ) = IndexLinear()
 
-function Base.read( filename::String, ::Type{CommaColumn{SubString{String}}} )
-    data = Mmap.mmap( filename, String, stat(filename) )
+function Base.read( filename::String, ::Type{CommaColumn{StringType}} )
+    data = Mmap.mmap( filename, Vector{UInt8}, stat(filename).size )
 
     indices_file = filename * "_indices"
-    n = stat(indices_file)
-    indices = Mmap( indices_file, Vector{Int}, n )
+    n = Int(stat(indices_file).size/8)
+    indices = Mmap.mmap( indices_file, Vector{Int}, n )
         
     return CommaColumn( VariableLengthStringVector( data, indices ), 1:n-1 )
 end
 
-function Base.write( filename::AbstractString, data::CommaColumn{SubString{String},U,V};
-                     append::Bool = false, buffersize=2^20 ) where {U,V}
-    base = filename * "_$T"
-    data = open( base, write=true, append=append )
-    indices = open( base * "_indices", write=true, append=append )
+function Base.write( filename::AbstractString, data::CommaColumn{StringType};
+                     append::Bool = false, buffersize=2^20 )
+    base = filename * "_$StringType"
 
-    close( data )
-    close( indices )
+    write_buffered( base, data.v.data, append=append, buffersize=buffersize )
+    write_buffered( base * "_indices", data.v.indices, append=append, buffersize=buffersize )
 end
+
+align( ::StringType ) = rpad
+
+push!( suffixes, r"_indices$" )
+

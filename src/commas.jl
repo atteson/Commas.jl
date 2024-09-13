@@ -61,36 +61,31 @@ transformtypes = Dict(
 Base.write( io::IO, v::Base.ReinterpretArray{T,U,V,W} ) where {T,U,V,W} =
     write( io, reinterpret( V, v ) )
 
-function write_buffered( io::IO )
-end
+function write_buffered( filename::AbstractString, data::AbstractVector{T};
+                         n = length(data), indices::AbstractVector{Int} = 1:n, append::Bool = false, buffersize=2^20 ) where {T}
+    io = open(  filename, write=true, append=append )
+    buffer = Array{T}( undef, buffersize )
 
-function Base.write( filename::AbstractString, data::CommaColumn{T,U,V}; append::Bool = false, buffersize=2^20 ) where {T,U,V}
-    io = open( joinpath( filename * "_$T" ), write=true, append=append )
-    
-    n = length(data)
-    if data.indices == 1:n
-        nb = write( io, data.v )
-    else
-        buffer = Array{T}( undef, buffersize )
-
-        nb = 0
-        i = 1
-        while i <= n
-            j = 1
-            while j <= buffersize && i <= n
-                buffer[j] = data[i]
-                j += 1
-                i += 1
-            end
-            if j < buffersize
-                resize!( buffer, j )
-            end
-            nb += write( io, buffer )
+    nb = 0
+    i = 1
+    while i <= n
+        j = 1
+        while j <= buffersize && i <= n
+            buffer[j] = data[i]
+            j += 1
+            i += 1
         end
+        if j < buffersize
+            resize!( buffer, j )
+        end
+        nb += write( io, buffer )
     end
     close( io )
     return nb
 end
+
+Base.write( filename::AbstractString, data::CommaColumn{T,U,V}; append::Bool = false, buffersize=2^20 ) where {T,U,V} =
+    write_buffered( filename, data.v, indices=data.indices, append=append, buffersize=buffersize )
 
 function Base.write( filename::AbstractString,
                      v::CommaColumn{Union{Missing,T},U,V};
@@ -140,11 +135,21 @@ function Base.write( dir::String, data::AbstractComma{T,U}; append::Bool = false
     end
 end
 
+const base_filename = r"^([^_]*)_([A-Za-z0-9,{}\. ]*)"
+const suffixes = Regex[]
+
 function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf )
     names = readdir( dir )
-    matches = match.( r"^(.*)_([A-Za-z0-9,{}\. ]*)$", names )
+    matches = match.( base_filename * r"$", names )
     if any( matches .== nothing )
-        error( "Couldn't work out type(s) of:\n" * join( joinpath.( dir, names[matches.==nothing] ), "\n" ) * "\n" )
+        bad = matches .== nothing
+        notbad = [any(match.( base_filename .* suffixes, names[i] ) .!= nothing) for i in 1:length(names)]
+        if any(bad .& .!notbad)
+            error( "Couldn't work out type(s) of:\n" * join( joinpath.( dir, names[bad[.!notbad]] ), "\n" ) * "\n" )
+        else
+            names = names[.!bad]
+            matches = matches[.!bad]
+        end
     end
 
     captures = getfield.( matches, :captures )
@@ -323,7 +328,7 @@ format( x::Number ) = sprintf1( formats[typeof(x)], x )
 format( x ) = string(x)
 format( x::Integer ) = string(x)
 
-align( d::Dates.TimeType ) = rpad
+align(d::Dates.TimeType ) = rpad
 align( x::Number ) = lpad
 align( c::NTuple{N,UInt8} ) where N = rpad
 align( x::MissingType{T} ) where T = align( x.x )
