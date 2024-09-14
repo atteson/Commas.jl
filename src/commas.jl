@@ -75,8 +75,8 @@ function write_buffered( filename::AbstractString, data::AbstractVector{T};
             j += 1
             i += 1
         end
-        if j < buffersize
-            resize!( buffer, j )
+        if j <= buffersize
+            resize!( buffer, j-1 )
         end
         nb += write( io, buffer )
     end
@@ -121,12 +121,15 @@ end
 Base.names( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(keys(comma.comma))
 Base.names( comma::Comma ) = names(comma.comma)
 
+eltypes( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(values(comma.comma))
+eltypes( comma::Comma ) = eltypes(comma.comma)
+
 Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
     CommaColumn( comma.comma[Symbol(column)], comma.indices )
 
 function Base.write( dir::String, data::AbstractComma{T,U}; append::Bool = false, verbose::Bool = false ) where {T,U}
     mkpath( dir )
-    for name in names(data)
+    for name in names(data) .* "_" .* eltypes(data)
         if verbose
             println( "Writing $column" )
         end

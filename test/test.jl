@@ -4,6 +4,7 @@ using DataFrames
 
 Random.seed!(1)
 n = 1_000_000
+n = 3
 m = 20
 ks = Symbol.(Char.(UInt8('a') .+ (0:m-1)))
 types = rand([Int, UInt8, Float64], m)
@@ -17,7 +18,7 @@ subcomma = Comma( comma, rand( 1:n, n1 ) )
 filename = tempname()
 write( filename, comma[:a] )
 type = eltype(comma[:a])
-col = read( filename * "_$type", CommaColumn{type} )
+col = read( filename, CommaColumn{type} )
 @assert( col == comma[:a] )
 
 dirname = tempname()
