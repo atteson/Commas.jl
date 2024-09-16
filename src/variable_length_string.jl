@@ -46,7 +46,7 @@ end
 
 function Base.write( filename::AbstractString, data::CommaColumn{StringType};
                      append::Bool = false, buffersize=2^20 )
-    base = filename * "_$StringType"
+    base = filename
 
     write_buffered( base, data.v.data, append=append, buffersize=buffersize )
     write_buffered( base * "_indices", data.v.indices, append=append, buffersize=buffersize )

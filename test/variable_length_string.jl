@@ -19,7 +19,6 @@ c1 = Comma( (s = cc,) )
 tmpdir = mktempdir()
 write( tmpdir, c1 )
 
-
 c2 = read( tmpdir, Comma );
 @assert( size(c1) == size(c2) )
 
