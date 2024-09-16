@@ -1,7 +1,5 @@
 using Commas
 using Random
-using GCTools
-using Commas
 
 Random.seed!(1)
 

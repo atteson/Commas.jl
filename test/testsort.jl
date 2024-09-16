@@ -33,7 +33,12 @@ perm = collect(1:n);
 @assert( issorted( v2[perm] ) )
 
 v1 = rand( n );
-@time perm = Commas.countingsortperm( perm, v1 );
+try
+    @time perm = Commas.countingsortperm( perm, v1 )
+    @assert( false, "Should have run out of spots!" )
+catch e
+    @assert( true )
+end
 @time perm = Commas.countingsortperm( perm, v1, UInt32 );
 @assert( all(test( v1, perm, .< ) .| (test( v1, perm, .== ) .& test( v2, perm, .<= ))) )
 
@@ -41,7 +46,12 @@ v1 = rand( n );
 n = 10_000_000
 v2 = rand( 1:n, n );
 perm = collect(1:n);
-@time perm = Commas.countingsortperm( perm, v2 );
+try
+    @time perm = Commas.countingsortperm( perm, v2 );
+    @assert( false, "Should have run out of spots!" )
+catch e
+    @assert( true )
+end
 @time perm = Commas.countingsortperm( perm, v2, UInt32 );
 @assert( issorted( v2[perm] ) )
 
@@ -56,7 +66,12 @@ perm = collect(1:n);
 @assert( issorted( v2[perm] ) )
 
 v1 = rand( 1:n, n );
-@time perm = Commas.countingsortperm( perm, v1 );
+try
+    @time perm = Commas.countingsortperm( perm, v1 );
+    @assert( false, "Should have run out of spots!" )
+catch e
+    @assert( true )
+end
 @time perm = Commas.countingsortperm( perm, v1, UInt32 );
 @assert( all(test( v1, perm, .< ) .| (test( v1, perm, .== ) .& test( v2, perm, .<= ))) )
 

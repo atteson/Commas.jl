@@ -35,3 +35,5 @@ for i = 1:size(c1,1)
 end
 
 rm(tmpdir, recursive=true)
+
+exit()
