@@ -52,24 +52,6 @@ comma2 = Comma( df )
 
 @assert( comma[2,:a] == vs[1][2] )
 @assert( subcomma[3,:b] == vs[2][subcomma.indices[3]] )
-@assert( comma[4,"c"] == vs[3][4] )
-
-small = ks[types .== UInt8][1:2]
-@time sorted = sort( comma, small... );
-
-sizes = Int[]
-@time for group in sorted
-    push!( sizes, size(group,1) )
-end
-
-a = [size(group,1) for group in sorted];
-a = [size(group,1) for group in comma];
-@assert( length(a) == n )
-@assert( unique(a) == [1] )
-
-x = comma[:a].^2;
-y = comma[:b].^2;
-@time bigger = [comma; :x => x];
-@time bigger = [comma; :x => x; :y => y];
+@assert( comma[3,"c"] == vs[3][3] )
 
 exit()

@@ -121,7 +121,7 @@ end
 Base.names( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(keys(comma.comma))
 Base.names( comma::Comma ) = names(comma.comma)
 
-eltypes( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(values(comma.comma))
+eltypes( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(eltype.(values(comma.comma)))
 eltypes( comma::Comma ) = eltypes(comma.comma)
 
 Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
@@ -129,12 +129,12 @@ Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
 
 function Base.write( dir::String, data::AbstractComma{T,U}; append::Bool = false, verbose::Bool = false ) where {T,U}
     mkpath( dir )
-    for name in names(data) .* "_" .* eltypes(data)
-        if verbose
-            println( "Writing $column" )
-        end
+    ns = names(data)
+    ts = eltypes(data)
+    for i in 1:length(ns)
+        name = ns[i]
         col = data[name]
-        write( joinpath( dir, name ), col, append=append )
+        write( joinpath( dir, name * "_$(ts[i])" ), col, append=append )
     end
 end
 
