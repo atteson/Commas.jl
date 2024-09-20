@@ -1,3 +1,4 @@
+export VariableLengthStringVector
 
 using StringViews
 
@@ -8,7 +9,7 @@ struct VariableLengthStringVector <: AbstractVector{StringType}
     indices::Vector{Int}
 end
 
-function VariableLengthStringVector( vs::Vector{String} )
+function VariableLengthStringVector( vs::AbstractVector{S} ) where {S <: AbstractString}
     lens = length.(vs)
     cumlens = cumsum(lens)
     data = Vector{UInt8}( undef, cumlens[end] )
