@@ -54,4 +54,33 @@ comma2 = Comma( df )
 @assert( subcomma[3,:b] == vs[2][subcomma.indices[3]] )
 @assert( comma[3,"c"] == vs[3][3] )
 
+comma2 = nothing
+rm(dirname, recursive=true)
+
+r = 0x41:0x5a
+x0 = [tuple(rand( r, 5 )...) for i in 1:100]
+x1 = [tuple(rand( r, 3 )...) for i in 1:10]
+y0 = [tuple(rand( r, 3 )...) for i in 1:100]
+y1 = [tuple(rand( r, 5 )...) for i in 1:10]
+comma = Comma( (x=x0, y=y0) )
+
+dirname = tempname()
+write( dirname, comma )
+comma2 = read( dirname, Comma )
+
+@assert( comma[:x] == comma2[:x] )
+@assert( comma[:y] == comma2[:y] )
+comma2 = nothing
+
+comma3 = Comma( (x=x1, y=y1) )
+write( dirname, comma3, append=true )
+
+comma4 = read( dirname, Comma )
+@assert( comma4[:x][1:100]  == x0 )
+@assert( getindex.( comma4[:x][101:end], [1:3] ) == x1 )
+@assert( getindex.( comma4[:y][1:100], [1:3] ) == y0 )
+@assert( comma4[:y][101:end] == y1 )
+
+rm(dirname, recursive=true)
+
 exit()

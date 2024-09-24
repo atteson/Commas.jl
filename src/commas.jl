@@ -61,9 +61,8 @@ transformtypes = Dict(
 Base.write( io::IO, v::Base.ReinterpretArray{T,U,V,W} ) where {T,U,V,W} =
     write( io, reinterpret( V, v ) )
 
-function write_buffered( filename::AbstractString, data::AbstractVector{T};
+function write_buffered( io::IOStream, data::AbstractVector{T};
                          n = length(data), indices::AbstractVector{Int} = 1:n, append::Bool = false, buffersize=2^20 ) where {T}
-    io = open(  filename, write=true, append=append )
     buffer = Array{T}( undef, buffersize )
 
     nb = 0
@@ -80,12 +79,15 @@ function write_buffered( filename::AbstractString, data::AbstractVector{T};
         end
         nb += write( io, buffer )
     end
-    close( io )
     return nb
 end
 
-Base.write( filename::AbstractString, data::CommaColumn{T,U,V}; append::Bool = false, buffersize=2^20 ) where {T,U,V} =
-    write_buffered( filename, data.v, indices=data.indices, append=append, buffersize=buffersize )
+function Base.write( filename::AbstractString, data::CommaColumn{T,U,V};
+                     append::Bool = false, buffersize=2^20 ) where {T,U,V}
+    io = open(  filename, append ? "a" : "w" )
+    write_buffered( io, data.v, indices=data.indices, append=append, buffersize=buffersize )
+    close( io )
+end
 
 function Base.write( filename::AbstractString,
                      v::CommaColumn{Union{Missing,T},U,V};
@@ -129,13 +131,13 @@ Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
 
 type_name( dir, col, type ) = joipnath( dir, "$(name)_$type" )
 
-function transform_buffered( infile::AbstractString, buffer::AbstractVector{T},
+function transform_buffered( infile::AbstractString, inbuffer::AbstractVector{T},
                              f::Function, outfile::AbstractString ) where {T}
-    n = Int(stat(infile)/sizeof(T))
+    n = Int(stat(infile).size/sizeof(T))
     m = length(inbuffer)
     
-    in = open( infile, write=true )
-    out = open( outfile, write=true )
+    in = open( infile, "r" )
+    out = open( outfile, "w" )
     i = 1
     while i + m -1 <= n
         read!( in, inbuffer )
@@ -157,10 +159,10 @@ function append( dir::String, data::AbstractComma{T,U};
                  verbose::Bool = false, buffersize=2^20 ) where {T,U}
     (filenames, cols, types) = names_types( dir )
     typedict = Dict( cols .=> types )
-    filenamedict = Dict( filenames .=> types )
+    filenamedict = Dict( cols .=> filenames )
 
     newnames = names(data)
-    @assert( Set(names) == Set(newnames) )
+    @assert( Set(cols) == Set(newnames) )
 
     newtypes = eltypes(data)
     for i = 1:length(newnames)
@@ -177,20 +179,24 @@ function append( dir::String, data::AbstractComma{T,U};
             if type != jointype
                 buffer = Vector{type}( undef, buffersize )
                 f = b -> convert.( jointype, b )
-                transform_buffered( filename, buffer, f, "$(col)_$jointype" )
+                newfilename = "$(name)_$jointype"
+                filepath = joinpath( dir, filename )
+                transform_buffered( filepath, buffer, f, joinpath( dir, newfilename ) )
+                rm( filepath )
+                filename = newfilename
             end
             if newtype != jointype
-                coldata = convert.( jointype, coldata )
+                coldata = CommaColumn( convert.( jointype, coldata ) )
             end
         end
-        write( filename, coldata, append=true )
+        write( joinpath( dir, filename ), coldata, append=true )
     end
 end
     
 function Base.write( dir::String, data::AbstractComma{T,U};
                      append::Bool = false, verbose::Bool = false ) where {T,U}
     if append && isdir( dir )
-        return append( dir, data, verbose=verbose )
+        return Commas.append( dir, data, verbose=verbose )
     end
     mkpath( dir )
     ns = names(data)
@@ -437,9 +443,13 @@ end
 
 const CharN{N} = NTuple{N,UInt8}
 
+Base.promote_type( ::Type{CharN{N}}, ::Type{CharN{M}} ) where {N,M} = CharN{max(M,N)}
+
 Base.convert( ::Type{CharN{N}}, x::AbstractString ) where {N} = convert( CharN{N}, (x*' '^(N-length(x))...,) )
 
 Base.convert( ::Type{String}, x::CharN{N} ) where {N} = strip(String([x...]))
+
+Base.convert( ::Type{CharN{N}}, x::CharN{M} ) where {N,M} = (x..., fill(UInt8(' '),N-M)...)
 
 Base.:(==)( s1::CharN{N}, s2::String ) where {N} = length(s2) > N ? false : convert( CharN{N}, s2 ) == s1
 Base.:(==)( s1::String, s2::CharN{N} ) where {N} = length(s1) > N ? false : convert( CharN{N}, s1 ) == s2
