@@ -26,6 +26,9 @@ function VariableLengthStringVector( vs::AbstractVector{S} ) where {S <: Abstrac
     return VariableLengthStringVector( data, [0; cumlens] )
 end
 
+VariableLengthStringVector( vs::AbstractVector{Union{S,Missing}} ) where {S <: AbstractString} = 
+    VariableLengthStringVector( demissing( vs ) )
+
 CommaColumn( v::VariableLengthStringVector, indices::V = 1:length(v) ) where {V <: AbstractVector{Int}} =
     CommaColumn{StringType,VariableLengthStringVector,V}( v, indices )
 

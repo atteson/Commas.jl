@@ -1,6 +1,6 @@
 using Dates
 using Mmap
-#using Formatting
+using Format
 using DataFrames
 using ZippedArrays
 using MissingTypes
@@ -89,7 +89,8 @@ Base.write( filename::AbstractString, data::CommaColumn{T,U,V}; append::Bool = f
 
 function Base.write( filename::AbstractString,
                      v::CommaColumn{Union{Missing,T},U,V};
-                     append::Bool=false ) where {T,U <: AbstractVector{Union{Missing,T}},V}
+                     append::Bool=false
+                     ) where {T,U <: AbstractVector{Union{Missing,T}},V}
     try
         write( filename, CommaColumn(convert( Vector{MissingType{T}}, v.v )), append=append )
     catch e
@@ -98,17 +99,16 @@ function Base.write( filename::AbstractString,
 end
 
 # julia doesn't do well with MissingType{CharN{N}} for large N (seems to be LLVM-related) so let's just skip the MissingType for strings
+demissing( v::AbstractVector{Union{Missing,T}} ) where {T <: AbstractString} = ifelse.( ismissing.(v), "", v )
+
 function Base.write(
     filename::AbstractString,
     v::CommaColumn{Union{Missing,T},U,V};
     append::Bool=false,
 ) where {T <: AbstractString, U <: AbstractVector{Union{Missing,T}},V}
-    missings = ismissing.(v.v)
-    N = reduce(max, length.(v.v[.!missings]), init=0)
-    if N > 0
-        w = convert.( CharN{N}, ifelse.( missings, "", v.v ) )
-        write( filename, CommaColumn(w), append=append )
-    end
+    w = demissing(v.v)
+    N = reduce( max, length.(w), init=0 )
+    write( filename, CommaColumn(convert.( CharN{N}, w )), append=append )
 end
 
 function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
@@ -121,13 +121,77 @@ end
 Base.names( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(keys(comma.comma))
 Base.names( comma::Comma ) = names(comma.comma)
 
-eltypes( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(eltype.(values(comma.comma)))
+eltypes( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = eltype.(values(comma.comma))
 eltypes( comma::Comma ) = eltypes(comma.comma)
 
 Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
     CommaColumn( comma.comma[Symbol(column)], comma.indices )
 
-function Base.write( dir::String, data::AbstractComma{T,U}; append::Bool = false, verbose::Bool = false ) where {T,U}
+type_name( dir, col, type ) = joipnath( dir, "$(name)_$type" )
+
+function transform_buffered( infile::AbstractString, buffer::AbstractVector{T},
+                             f::Function, outfile::AbstractString ) where {T}
+    n = Int(stat(infile)/sizeof(T))
+    m = length(inbuffer)
+    
+    in = open( infile, write=true )
+    out = open( outfile, write=true )
+    i = 1
+    while i + m -1 <= n
+        read!( in, inbuffer )
+        outbuffer = f( inbuffer )
+        write( out, outbuffer )
+    end
+    if i < n
+        remaining = view( inbuffer, 1:n-i+1 )
+        read!( in, remaining )
+        outbuffer = f( remaining )
+        write( out, outbuffer )
+    end
+        
+    close( in )
+    close( out )
+end
+
+function append( dir::String, data::AbstractComma{T,U};
+                 verbose::Bool = false, buffersize=2^20 ) where {T,U}
+    (filenames, cols, types) = names_types( dir )
+    typedict = Dict( cols .=> types )
+    filenamedict = Dict( filenames .=> types )
+
+    newnames = names(data)
+    @assert( Set(names) == Set(newnames) )
+
+    newtypes = eltypes(data)
+    for i = 1:length(newnames)
+        name = newnames[i]
+        newtype = newtypes[i]
+
+        coldata = data[name]
+        
+        type = typedict[name]
+        filename = filenamedict[name]
+        
+        if newtype != type
+            jointype = promote_type( newtype, type )
+            if type != jointype
+                buffer = Vector{type}( undef, buffersize )
+                f = b -> convert.( jointype, b )
+                transform_buffered( filename, buffer, f, "$(col)_$jointype" )
+            end
+            if newtype != jointype
+                coldata = convert.( jointype, coldata )
+            end
+        end
+        write( filename, coldata, append=true )
+    end
+end
+    
+function Base.write( dir::String, data::AbstractComma{T,U};
+                     append::Bool = false, verbose::Bool = false ) where {T,U}
+    if append && isdir( dir )
+        return append( dir, data, verbose=verbose )
+    end
     mkpath( dir )
     ns = names(data)
     ts = eltypes(data)
@@ -141,7 +205,7 @@ end
 const base_filename = r"^([^_]*)_([A-Za-z0-9,{}\. ]*)"
 const suffixes = Regex[]
 
-function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf )
+function names_types( dir::String )
     names = readdir( dir )
     matches = match.( base_filename * r"$", names )
     if any( matches .== nothing )
@@ -158,16 +222,19 @@ function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf
     captures = getfield.( matches, :captures )
     cols = getindex.( captures, 1 )
     types = getindex.( captures, 2 )
+    transformedtypes = get.( [transformtypes], types, types )
+    datatypes = Base.eval.([Main], Meta.parse.(transformedtypes))
+    return (names, cols, datatypes)
+end
 
-    #nt = NamedTuple{}()
+function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf )
+    (names, cols, types) = names_types( dir )
+
     range = startcolindex:Int(min(endcolindex,length(cols)))
     data = []
     for i in range
-        transformedtype = get( transformtypes, types[i], types[i] )
-        datatype = Base.eval(Main, Meta.parse(transformedtype))
-
         filename = joinpath( dir, names[i] )
-        col = read( filename, CommaColumn{datatype} );
+        col = read( filename, CommaColumn{types[i]} );
         #        nt = merge( nt, (;Symbol(cols[i]) => col) );
         push!( data, col.v )
     end
@@ -321,13 +388,11 @@ end
 formats = Dict(
     Dates.Date => DateFormat( "mm/dd/yyyy" ),
     Dates.Time => DateFormat( "HH:MM:SS.sss" ),
-    Float32 => "%0.2f",
-    Float64 => "%0.2f",
     Dates.DateTime => DateFormat( "mm/dd/yyyy HH:MM:SS.sss" ),
 )
 
 format( d::Dates.TimeType ) = Dates.format( d, formats[typeof(d)] )
-format( x::Number ) = sprintf1( formats[typeof(x)], x )
+format( x::Number ) = Format.format( x, precision=2 )
 format( x ) = string(x)
 format( x::Integer ) = string(x)
 
@@ -382,7 +447,8 @@ Base.:(==)( s1::String, s2::CharN{N} ) where {N} = length(s1) > N ? false : conv
 # This data structure doesn't support strings so this is the alternative for now
 Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String(UInt8[tuple...]) )
 
-function CommaColumn( v::AbstractVector{T}, indices::V = 1:length(v) ) where {T <: AbstractString, V <: AbstractVector{Int}}
+function CommaColumn(
+    v::AbstractVector{T}, indices::V = 1:length(v) ) where {T <: AbstractString, V <: AbstractVector{Int}}
     N = length(v)
     l = mapreduce( length, max, v )
     if l > 0
@@ -401,15 +467,10 @@ function CommaColumn( v::AbstractVector{T}, indices::V = 1:length(v) ) where {T 
     return CommaColumn( vc, indices )
 end
 
-function Comma( dir::String, df::DataFrame; verbose=false )
+function Comma( dir::String, df::DataFrame; append=false )
     mkpath(dir)
-    for name in names(df)
-        if verbose
-            println( "Writing $name" )
-        end
-        write( joinpath( dir, name ), CommaColumn( df[!,name] ) )
-    end
-    return read( dir, Comma )
+    nt = NamedTuple([Symbol(n) => CommaColumn(c) for (n,c) in collect(pairs(eachcol(df)))]);
+    return write( dir, Comma(nt), append=append )
 end
 
 Base.show( io::IO, df::Type{Comma{S,T,U,V,W}} ) where {S,T,U,V,W} = 
