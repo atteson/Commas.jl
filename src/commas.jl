@@ -13,7 +13,8 @@ export CharN, Comma, CommaColumn, groupby, sortkeys, combine
 abstract type AbstractComma{T,U}
 end
 
-mutable struct Comma{S,T,U,V <: Union{NamedTuple{T,U},AbstractComma{T,U}},W <: AbstractVector{Int}} <: AbstractComma{T,U}
+mutable struct Comma{S,T,U,V <: Union{NamedTuple{T,U},AbstractComma{T,U}},
+                     W <: AbstractVector{Int}} <: AbstractComma{T,U}
     comma::V
     indices::W
 end
@@ -29,96 +30,11 @@ Comma( S, nt::NamedTuple{T,U}, indices::V ) where {T,U,V} =
 
 function Comma( df::DataFrame )
     ks = Symbol.(names(df))
-    nt = NamedTuple{(ks...,)}( eachcol(df) )
+    nt = NamedTuple{(ks...,)}( CommaColumn.(eachcol(df)) )
     return Comma( nt )
 end
 
-struct CommaColumn{T,U<:AbstractVector{T},V<:AbstractVector{Int}} <: AbstractVector{T}
-    v::U
-    indices::V
-end
-
-CommaColumn( v::AbstractVector, indices::V = 1:length(v) ) where {V} = CommaColumn( v, indices )
-
-Base.length( col::CommaColumn ) = length(col.indices)
-Base.size( col::CommaColumn ) = (length(col),)
-Base.getindex( col::CommaColumn, i::Int ) = col.v[col.indices[i]]
-
-function Base.setindex!( col::CommaColumn, v, i::Int )
-    col.v[col.indices[i]] = v
-end
-
 Base.getindex( comma::Comma{S,T,U,V,W}, column::Symbol ) where {S,T,U,V,W} = CommaColumn( comma.comma[column], comma.indices )
-
-# required transformations to move from 0.6 to 1.0
-transformtypes = Dict(
-    "Dates.Date" => "Commas.Dates.Date",
-    "Date" => "Commas.Dates.Date",
-    "DateTime" => "Commas.Dates.DateTime",
-    "Base.Dates.Time" => "Commas.Dates.Time",
-)
-
-Base.write( io::IO, v::Base.ReinterpretArray{T,U,V,W} ) where {T,U,V,W} =
-    write( io, reinterpret( V, v ) )
-
-function write_buffered( io::IOStream, data::AbstractVector{T};
-                         n = length(data), indices::AbstractVector{Int} = 1:n, append::Bool = false, buffersize=2^20 ) where {T}
-    buffer = Array{T}( undef, buffersize )
-
-    nb = 0
-    i = 1
-    while i <= n
-        j = 1
-        while j <= buffersize && i <= n
-            buffer[j] = data[i]
-            j += 1
-            i += 1
-        end
-        if j <= buffersize
-            resize!( buffer, j-1 )
-        end
-        nb += write( io, buffer )
-    end
-    return nb
-end
-
-function Base.write( filename::AbstractString, data::CommaColumn{T,U,V};
-                     append::Bool = false, buffersize=2^20 ) where {T,U,V}
-    io = open(  filename, append ? "a" : "w" )
-    write_buffered( io, data.v, indices=data.indices, append=append, buffersize=buffersize )
-    close( io )
-end
-
-function Base.write( filename::AbstractString,
-                     v::CommaColumn{Union{Missing,T},U,V};
-                     append::Bool=false
-                     ) where {T,U <: AbstractVector{Union{Missing,T}},V}
-    try
-        write( filename, CommaColumn(convert( Vector{MissingType{T}}, v.v )), append=append )
-    catch e
-        error( "Error writing $filename" )
-    end
-end
-
-# julia doesn't do well with MissingType{CharN{N}} for large N (seems to be LLVM-related) so let's just skip the MissingType for strings
-demissing( v::AbstractVector{Union{Missing,T}} ) where {T <: AbstractString} = ifelse.( ismissing.(v), "", v )
-
-function Base.write(
-    filename::AbstractString,
-    v::CommaColumn{Union{Missing,T},U,V};
-    append::Bool=false,
-) where {T <: AbstractString, U <: AbstractVector{Union{Missing,T}},V}
-    w = demissing(v.v)
-    N = reduce( max, length.(w), init=0 )
-    write( filename, CommaColumn(convert.( CharN{N}, w )), append=append )
-end
-
-function Base.read( filename::String, ::Type{CommaColumn{T}} ) where {T}
-    filesize = stat( filename ).size
-    n = sizeof(T) == 0 ? 0 : Int(filesize/sizeof(T))
-        
-    return CommaColumn( Mmap.mmap( filename, Vector{T}, n ), 1:n )
-end
 
 Base.names( comma::Comma{S,T,U,NamedTuple{T,U}} ) where {S,T,U} = string.(keys(comma.comma))
 Base.names( comma::Comma ) = names(comma.comma)
@@ -128,8 +44,6 @@ eltypes( comma::Comma ) = eltypes(comma.comma)
 
 Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
     CommaColumn( comma.comma[Symbol(column)], comma.indices )
-
-type_name( dir, col, type ) = joipnath( dir, "$(name)_$type" )
 
 function transform_buffered( infile::AbstractString, inbuffer::AbstractVector{T},
                              f::Function, outfile::AbstractString ) where {T}
@@ -228,8 +142,7 @@ function names_types( dir::String )
     captures = getfield.( matches, :captures )
     cols = getindex.( captures, 1 )
     types = getindex.( captures, 2 )
-    transformedtypes = get.( [transformtypes], types, types )
-    datatypes = Base.eval.([Main], Meta.parse.(transformedtypes))
+    datatypes = Base.eval.([Main], Meta.parse.(types))
     return (names, cols, datatypes)
 end
 
@@ -241,7 +154,6 @@ function Base.read( dir::String, ::Type{Comma}; startcolindex=1, endcolindex=Inf
     for i in range
         filename = joinpath( dir, names[i] )
         col = read( filename, CommaColumn{types[i]} );
-        #        nt = merge( nt, (;Symbol(cols[i]) => col) );
         push!( data, col.v )
     end
     return Comma( NamedTuple{(Symbol.(cols[range])...,)}( data ) )
@@ -258,15 +170,6 @@ Base.values( subcomma::AbstractComma{T,U} ) where {T,U} = getindex.( values( sub
 
 DataFrames.DataFrame( comma::AbstractComma{T,U} ) where {T,U} =
     DataFrame( Any[values(comma)...], [keys(comma)...] )
-
-materialize( col::CommaColumn{T,Vector{T},UnitRange{Int}} ) where {T} = col
-
-function materialize( col::CommaColumn{T,U,V} ) where {T,U <: CommaColumn,V}
-    m = materialize( col.v )
-    return CommaColumn( m.v[col.indices], 1:length(col.indices) )
-end
-
-materialize( col::AbstractVector ) = CommaColumn( col.v[col.indices], 1:length(col.indices) ) 
 
 function Base.vcat( comma::Comma{S,T,U,V,W}, kv::Pair{Symbol, X} ) where {S,T,U,V,W,X <: AbstractVector}
     comma = materialize( comma )
@@ -313,12 +216,6 @@ Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int} ) where {
     Comma( comma, indices )
 
 Base.lastindex( comma::AbstractComma{T,U}, args... ) where {T,U} = length(comma.indices)
-
-Base.getindex( col::CommaColumn{T,U,V}, i::Int ) where {T,U,V} = col.v[col.indices[i]]
-
-Base.length( col::CommaColumn{T,U,V} ) where {T,U,V} = length(col.indices)
-
-Base.size( col::CommaColumn{T,U,V} ) where {T,U,V} = (length(col),)
 
 function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; type::Type{X} = UInt16 ) where {S,T,U,V,W,X}
     vs = materialize.(getindex.( [comma], reverse(ks) ) )
@@ -456,32 +353,6 @@ Base.:(==)( s1::String, s2::CharN{N} ) where {N} = length(s1) > N ? false : conv
 
 # This data structure doesn't support strings so this is the alternative for now
 Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String(UInt8[tuple...]) )
-
-function CommaColumn(
-    v::AbstractVector{T}, indices::V = 1:length(v) ) where {T <: AbstractString, V <: AbstractVector{Int}}
-    N = length(v)
-    l = mapreduce( length, max, v )
-    if l > 0
-        vu = fill( UInt8(' '), N*l )
-
-        j = 1
-        for i = 1:N
-            copyto!( vu, j, v[i] )
-            j += l
-        end
-        vc = reinterpret( CharN{l}, vu )
-    else
-        vc = Vector{CharN{0}}( undef, N )
-    end
-
-    return CommaColumn( vc, indices )
-end
-
-function Comma( dir::String, df::DataFrame; append=false )
-    mkpath(dir)
-    nt = NamedTuple([Symbol(n) => CommaColumn(c) for (n,c) in collect(pairs(eachcol(df)))]);
-    return write( dir, Comma(nt), append=append )
-end
 
 Base.show( io::IO, df::Type{Comma{S,T,U,V,W}} ) where {S,T,U,V,W} = 
     print( io, "Comma{$S,...,$W}" )

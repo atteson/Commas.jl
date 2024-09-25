@@ -1,5 +1,6 @@
 module Commas
 
+include("comma_columns.jl")
 include("commas.jl")
 include("sort.jl")
 include("join.jl")
