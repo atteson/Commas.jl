@@ -50,22 +50,23 @@ function transform_buffered( infile::AbstractString, inbuffer::AbstractVector{T}
     n = Int(stat(infile).size/sizeof(T))
     m = length(inbuffer)
     
-    in = open( infile, "r" )
+    fin = open( infile, "r" )
     out = open( outfile, "w" )
     i = 1
-    while i + m -1 <= n
-        read!( in, inbuffer )
+    while i + m - 1 <= n
+        read!( fin, inbuffer )
         outbuffer = f( inbuffer )
         write( out, outbuffer )
+        i += m
     end
     if i < n
         remaining = view( inbuffer, 1:n-i+1 )
-        read!( in, remaining )
+        read!( fin, remaining )
         outbuffer = f( remaining )
         write( out, outbuffer )
-    end
+
         
-    close( in )
+    close( fin )
     close( out )
 end
 
@@ -81,20 +82,21 @@ function append( dir::String, data::AbstractComma{T,U};
     newtypes = eltypes(data)
     for i = 1:length(newnames)
         name = newnames[i]
-        newtype = newtypes[i]
+        if verbose
+            println( "Writing $name at $(now())" )
+        end
 
-        coldata = data[name]
-        
-        type = typedict[name]
         filename = filenamedict[name]
-        
+        type = typedict[name]
+        coldata = data[name]
+        newtype = newtypes[i]
         if newtype != type
             jointype = promote_type( newtype, type )
             if type != jointype
                 buffer = Vector{type}( undef, buffersize )
                 f = b -> convert.( jointype, b )
                 newfilename = "$(name)_$jointype"
-                filepath = joinpath( dir, filename )
+                Filepath = joinpath( dir, filename )
                 transform_buffered( filepath, buffer, f, joinpath( dir, newfilename ) )
                 rm( filepath )
                 filename = newfilename
@@ -103,6 +105,7 @@ function append( dir::String, data::AbstractComma{T,U};
                 coldata = CommaColumn( convert.( jointype, coldata ) )
             end
         end
+        
         write( joinpath( dir, filename ), coldata, append=true )
     end
 end
@@ -118,25 +121,23 @@ function Base.write( dir::String, data::AbstractComma{T,U};
     for i in 1:length(ns)
         name = ns[i]
         col = data[name]
-        write( joinpath( dir, name * "_$(ts[i])" ), col, append=append )
+        write( joinpath( dir, name * "_$(ts[i])" ), col )
     end
 end
 
-const base_filename = r"^([^_]*)_([A-Za-z0-9,{}\. ]*)"
+const base_filename = r"^(.*)_([A-Za-z0-9,{}\. ]*)$"
 const suffixes = Regex[]
 
 function names_types( dir::String )
     names = readdir( dir )
-    matches = match.( base_filename * r"$", names )
-    if any( matches .== nothing )
-        bad = matches .== nothing
-        notbad = [any(match.( base_filename .* suffixes, names[i] ) .!= nothing) for i in 1:length(names)]
-        if any(bad .& .!notbad)
-            error( "Couldn't work out type(s) of:\n" * join( joinpath.( dir, names[bad[.!notbad]] ), "\n" ) * "\n" )
-        else
-            names = names[.!bad]
-            matches = matches[.!bad]
-        end
+    matches = match.( base_filename, names )
+    bad = matches .== nothing
+    if any( bad )
+        error( "Couldn't work out type(s) of:\n" * join( joinpath.( dir, bad ), "\n" ) * "\n" )
+    else
+        has_suffix = [any(match.( suffixes, names[i] ) .!= nothing) for i in 1:length(names)]
+        names = names[.!has_suffix]
+        matches = matches[.!has_suffix]
     end
 
     captures = getfield.( matches, :captures )

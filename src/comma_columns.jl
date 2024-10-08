@@ -1,3 +1,4 @@
+using StatsBase
 
 struct CommaColumn{T,U<:AbstractVector{T},V<:AbstractVector{Int}} <: AbstractVector{T}
     v::U
@@ -11,12 +12,12 @@ CommaColumn( v::AbstractVector{Union{Missing,T}}, indices::AbstractVector{Int} =
 
 demissing( v::AbstractVector{Union{Missing,T}} ) where {T <: AbstractString} = ifelse.( ismissing.(v), "", v )
 
-CommaColumn( v::AbstractVector{V},
-             indices::AbstractVector{Int} = 1:length(v) ) where {T <: AbstractString, V <: Union{Missing,T}} =
+CommaColumn( v::AbstractVector{Union{Missing,T}},
+             indices::AbstractVector{Int} = 1:length(v) ) where {T <: AbstractString} =
                  CommaColumn( demissing( v ), indices )
 
 function CommaColumn( v::AbstractVector{T}, indices::AbstractVector{Int} = 1:length(v);
-                      factor::Float64 = 3 ) where {T <: AbstractString}
+                      factor::Float64 = 3.0 ) where {T <: AbstractString}
     N = length(v)
     lengths = length.(v)
     l = maximum(lengths)
@@ -31,7 +32,7 @@ function CommaColumn( v::AbstractVector{T}, indices::AbstractVector{Int} = 1:len
             end
             vc = reinterpret( CharN{l}, vu )
         else
-            vc = VariableLengthStringVector( vu )
+            vc = VariableLengthStringVector( v )
         end
     else
         vc = Vector{CharN{0}}( undef, N )
