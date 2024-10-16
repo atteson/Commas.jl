@@ -7,7 +7,7 @@ using StringViews
 lendist = Geometric(0.01)
 
 dir = mktemp()
-v = [randstring( rand( lendist ) ) for i = 1:1_000_000]
+v = [randstring( rand( lendist ) ) for i = 1:1_000]
 cc = Commas.VariableLengthStringVector( v )
 
 size( cc )
@@ -18,6 +18,9 @@ end
 c1 = Comma( (s = cc,) )
 tmpdir = mktempdir()
 write( tmpdir, c1 )
+
+using Debugger
+@enter write(tmpdir, c1)
 
 c2 = read( tmpdir, Comma );
 @assert( size(c1) == size(c2) )

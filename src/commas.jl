@@ -45,26 +45,33 @@ eltypes( comma::Comma ) = eltypes(comma.comma)
 Base.getindex( comma::AbstractComma{T,U}, column::String ) where {T,U} =
     CommaColumn( comma.comma[Symbol(column)], comma.indices )
 
-function transform_buffered( infile::AbstractString, inbuffer::AbstractVector{T},
-                             f::Function, outfile::AbstractString ) where {T}
+function convert_buffered( infile::AbstractString, intype::Type{T},
+                             outfile::AbstractString, outtype::Type{U};
+                             buffersize::Int = 2^20 ) where {T,U}
     n = Int(stat(infile).size/sizeof(T))
-    m = length(inbuffer)
+    m = buffersize
+    inbuffer = Vector{T}( undef, m )
+    outbuffer = Vector{U}( undef, m )
     
     fin = open( infile, "r" )
     out = open( outfile, "w" )
     i = 1
     while i + m - 1 <= n
         read!( fin, inbuffer )
-        outbuffer = f( inbuffer )
+        for j = 1:m
+            outbuffer[j] = convert( U, inbuffer[j] )
+        end
         write( out, outbuffer )
         i += m
     end
     if i < n
-        remaining = view( inbuffer, 1:n-i+1 )
-        read!( fin, remaining )
-        outbuffer = f( remaining )
-        write( out, outbuffer )
-
+        stop = n-i+1
+        remainingin = view( inbuffer, 1:stop )
+        remainingout = view( outbuffer, 1:stop )
+        read!( fin, remainingin )
+        remainingout[1:stop] = convert.( U, remainingin[1:stop] )
+        write( out, remainingout )
+    end
         
     close( fin )
     close( out )
@@ -93,11 +100,9 @@ function append( dir::String, data::AbstractComma{T,U};
         if newtype != type
             jointype = promote_type( newtype, type )
             if type != jointype
-                buffer = Vector{type}( undef, buffersize )
-                f = b -> convert.( jointype, b )
                 newfilename = "$(name)_$jointype"
-                Filepath = joinpath( dir, filename )
-                transform_buffered( filepath, buffer, f, joinpath( dir, newfilename ) )
+                filepath = joinpath( dir, filename )
+                convert_buffered( filepath, type, joinpath( dir, newfilename ), jointype)
                 rm( filepath )
                 filename = newfilename
             end

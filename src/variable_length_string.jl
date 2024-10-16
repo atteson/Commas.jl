@@ -48,7 +48,8 @@ CommaColumn( v::VariableLengthStringVector, indices::V = 1:length(v) ) where {V 
 
 Base.getindex( s::VariableLengthStringVector, i::Int ) = StringView( view( s.data, s.indices[i]+1:s.indices[i+1] ) )
 
-Base.getindex( s::VariableLengthStringVector, i::AbstractVector{Int} ) = VariableLengthStringVector( s.data, s.indices[i] )
+Base.getindex( s::VariableLengthStringVector, i::AbstractVector{Int} ) =
+    VariableLengthStringVector( getindex.( [s], i ) )
 
 Base.size( s::VariableLengthStringVector ) = (length(s.indices)-1,)
 
@@ -77,6 +78,30 @@ function Base.write( filename::AbstractString, data::VariableLengthStringVector;
     io = open(  colfilename, append ? "a" : "w" )
     write_buffered( io, n .+ data.indices[start:end], append=append, buffersize=buffersize )
     close(io)
+end
+
+function convert_buffered( infile::AbstractString, intype::Type{CharN{N}},
+                           outfile::AbstractString, outtype::Union{Type{StringType},Type{VariableLengthString}};
+                           buffersize::Int = 2^20 ) where {N}
+    n = Int(stat(infile).size/N)
+    m = Int(buffersize)
+    inbuffer = Vector{CharN{N}}( undef, m )
+    
+    fin = open( infile, "r" )
+    i = 1
+    while i + m - 1 <= n
+        read!( fin, inbuffer )
+        out = VariableLengthStringVector( inbuffer )
+        write( outfile, out, append=true )
+        i += m
+    end
+    if i < n
+        stop = n-i+1
+        remaining = view( inbuffer, 1:stop )
+        read!( fin, remaining )
+        out = VariableLengthStringVector( remaining )
+        write( outfile, out, append=true )
+    end
 end
 
 # this could be made more memory efficient
