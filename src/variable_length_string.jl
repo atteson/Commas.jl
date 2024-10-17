@@ -31,16 +31,9 @@ VariableLengthStringVector( vs::AbstractVector{Union{S,Missing}} ) where {S <: A
 
 VariableLengthStringVector( v::AbstractVector{CharN{N}} ) where {N} = VariableLengthStringVector( rstrip.( string.( v ) ) )
 
-abstract type VariableLengthString
-end
+Base.promote_rule( ::Type{StringType}, ::Type{CharN{N}} ) where {N} = StringType
 
-Base.sizeof( ::Type{VariableLengthString} ) = (1,)
-
-Base.promote_type( ::Type{StringType}, ::Type{CharN{N}} ) where {N} = VariableLengthString
-
-Base.Broadcast.broadcasted( convert, ::Type{VariableLengthString}, v::AbstractVector{StringType} ) = v
-    
-Base.Broadcast.broadcasted( convert, ::Type{VariableLengthString}, v::AbstractVector{CharN{N}} ) where {N} =
+Base.Broadcast.broadcasted( convert, ::Type{StringType}, v::AbstractVector{CharN{N}} ) where {N} =
     VariableLengthStringVector( v )
 
 CommaColumn( v::VariableLengthStringVector, indices::V = 1:length(v) ) where {V <: AbstractVector{Int}} =
@@ -81,7 +74,7 @@ function Base.write( filename::AbstractString, data::VariableLengthStringVector;
 end
 
 function convert_buffered( infile::AbstractString, intype::Type{CharN{N}},
-                           outfile::AbstractString, outtype::Union{Type{StringType},Type{VariableLengthString}};
+                           outfile::AbstractString, outtype::Type{StringType};
                            buffersize::Int = 2^20 ) where {N}
     n = Int(stat(infile).size/N)
     m = Int(buffersize)
