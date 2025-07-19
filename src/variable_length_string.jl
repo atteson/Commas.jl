@@ -2,6 +2,8 @@ export VariableLengthStringVector
 
 using StringViews
 
+export StringViews
+
 const StringType = StringViews.StringView{SubArray{UInt8, 1, Vector{UInt8}, Tuple{UnitRange{Int64}}, true}}
 
 struct VariableLengthStringVector <: AbstractVector{StringType}
