@@ -68,7 +68,7 @@ function Base.write( filename::AbstractString, data::VariableLengthStringVector;
     close(io)
 
     colfilename = "$(filename)_indices"
-    n = Int(stat(colfilename).size/8)
+    n = append ? Int(stat(colfilename).size/8) : 0
     start = append && n > 0 ? 2 : 1
     io = open(  colfilename, append ? "a" : "w" )
     write_buffered( io, n .+ data.indices[start:end], append=append, buffersize=buffersize )
