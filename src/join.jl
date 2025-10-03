@@ -52,8 +52,20 @@ function innerjoin(
     return Comma( merge( nt1, nt2 ) )
 end
 
-innerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
-    innerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
+innerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2};
+           kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
+               innerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2,
+                          Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
+
+function innerjoin( comma1::Comma{S1,T1,U1,V1,W1}, prefix1::Symbol,
+                    comma2::Comma{S2,T2,U2,V2,W2}, prefix2::Symbol, on::Symbol;
+                    kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2}
+    d1 = Dict( (k => Symbol(string(prefix1) * "_" * string(k)) for k in setdiff(keys(comma1), [on])) )
+    d1[on] = on
+    d2 = Dict( (k => Symbol(string(prefix2) * "_" * string(k)) for k in setdiff(keys(comma2), [on])) )
+    d2[on] = on
+    return innerjoin( comma1, d1, comma2, d2; kwargs... )
+end                        
 
 function align!( v, lo, hi )
     n = length.(v)
@@ -225,5 +237,7 @@ function outerjoin(
     return Comma( merge( nts... ) )
 end    
 
-outerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2}; kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
-    outerjoin( comma1, Dict( (k => k for k in keys(comma1)) ), comma2, Dict( (k => k for k in setdiff(keys(comma2), S2)) ); kwargs... )
+outerjoin( comma1::Comma{S1,T1,U1,V1,W1}, comma2::Comma{S2,T2,U2,V2,W2};
+           kwargs... ) where {S1, T1, U1, V1, W1, S2, T2, U2, V2, W2} =
+               outerjoin( comma1, Dict( (k => k for k in keys(comma1)) ),
+                          comma2, Dict( (k => k for k in keys(comma2)) ); kwargs... )

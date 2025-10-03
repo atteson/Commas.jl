@@ -224,6 +224,9 @@ Base.getindex( comma::AbstractComma{T,U}, indices::AbstractVector{Int} ) where {
 Base.lastindex( comma::AbstractComma{T,U}, args... ) where {T,U} = length(comma.indices)
 
 function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; type::Type{X} = UInt16 ) where {S,T,U,V,W,X}
+    if issorted( zip( getindex.( [comma], ks )... ) )
+        return comma
+    end
     vs = materialize.(getindex.( [comma], reverse(ks) ) )
     perm = 1:length(vs[1])
     for v in vs
@@ -335,8 +338,11 @@ function Base.show(
             
             collength = min( maximum(length.(colstrings)) + 1, termwidth - totallength )
             totallength += collength
-            
-            colstrings = getindex.( align( col[1] ).( colstrings, collength - 1 ), [1:collength-1] ) .* " "
+
+            if length(col)> 0
+                colstrings = getindex.( align( col[1] ).( colstrings, collength - 1 ), [1:collength-1] )
+            end
+            colstrings .*= " "
             push!( columns, colstrings )
             totallength >= termwidth && break
         end
@@ -362,3 +368,22 @@ Base.show( io::IO, tuple::NTuple{N,UInt8} ) where {N} = print( io, String(UInt8[
 
 Base.show( io::IO, df::Type{Comma{S,T,U,V,W}} ) where {S,T,U,V,W} = 
     print( io, "Comma{$S,...,$W}" )
+
+function pivot(df, row, col, value)
+    cs = sort(collect(Set( df[col] )));
+    rs = sort(collect(Set( df[row] )));
+
+    cd = Dict( cs .=> 1:length(cs) );
+    rd = Dict( rs .=> 1:length(rs) );
+
+    vs = fill.( NaN, fill( length(rs), length(cs) ) );
+    ci = getindex.( [cd], df[col] );
+    ri = getindex.( [rd], df[row] );
+
+    for i = 1:length(ci)
+        vs[ci[i]][ri[i]] = df[value][i]
+    end
+
+    syms = Symbol.(strip.(string.(cs)))
+    return Comma( NamedTuple{(row,syms...,)}( [[rs]; vs] ) )
+end
