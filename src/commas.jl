@@ -225,7 +225,7 @@ Base.lastindex( comma::AbstractComma{T,U}, args... ) where {T,U} = length(comma.
 
 function Base.sort( comma::Comma{S,T,U,V,W}, ks::Vararg{Symbol}; type::Type{X} = UInt16 ) where {S,T,U,V,W,X}
     if issorted( zip( getindex.( [comma], ks )... ) )
-        return comma
+        return Comma{ks,T,U,V,W}( comma.comma, comma.indices )
     end
     vs = materialize.(getindex.( [comma], reverse(ks) ) )
     perm = 1:length(vs[1])
